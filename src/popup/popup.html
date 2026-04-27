@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weread Extract</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup">
+    <header class="popup-header">
+      <h1 class="popup-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+        </svg>
+        Weread Extract
+      </h1>
+      <span class="popup-version">v1.0</span>
+    </header>
+
+    <div id="status-bar" class="status-bar status-unknown">
+      <span class="status-dot"></span>
+      <span id="status-text">检测中...</span>
+    </div>
+
+    <div class="format-group">
+      <label>输出格式</label>
+      <div class="format-btns">
+        <button class="fmt-btn active" data-format="markdown">Markdown</button>
+        <button class="fmt-btn" data-format="text">纯文本</button>
+        <button class="fmt-btn" data-format="html">HTML</button>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" id="btn-extract-chapter" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+        </svg>
+        提取当前章节
+      </button>
+      <button class="btn btn-secondary" id="btn-extract-visible" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+        提取可见内容
+      </button>
+    </div>
+
+    <div id="meta-section" class="meta-section" style="display:none;">
+      <span id="meta-book"></span>
+      <span id="meta-chapter"></span>
+    </div>
+
+    <div id="preview-section" class="preview-section" style="display:none;">
+      <div class="preview-header">
+        <span>预览</span>
+        <span id="char-count" class="char-count"></span>
+      </div>
+      <pre id="preview-content" class="preview-content"></pre>
+    </div>
+
+    <div class="footer-actions">
+      <button class="btn btn-copy" id="btn-copy" disabled>复制到剪贴板</button>
+    </div>
+
+    <div id="error-section" class="error-section" style="display:none;"></div>
+
+    <footer class="popup-footer">
+      <span>Alt+W 快速打开页面面板</span>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

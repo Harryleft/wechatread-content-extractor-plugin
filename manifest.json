@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "Weread Extract",
+  "version": "1.0.0",
+  "description": "一键提取微信读书章节内容，支持 Markdown/纯文本/HTML 格式输出，快速交给 AI 分析",
+  "background": {
+    "service_worker": "src/background/service-worker.js"
+  },
+  "icons": {
+    "16": "src/icons/icon16.png",
+    "48": "src/icons/icon48.png",
+    "128": "src/icons/icon128.png"
+  },
+  "action": {
+    "default_icon": {
+      "16": "src/icons/icon16.png",
+      "48": "src/icons/icon48.png"
+    },
+    "default_popup": "src/popup/popup.html",
+    "default_title": "Weread Extract"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://weread.qq.com/web/reader/*"],
+      "js": ["src/content/extractor.js", "src/content/content.js"],
+      "css": ["src/content/content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "permissions": [
+    "activeTab",
+    "storage",
+    "clipboardWrite"
+  ],
+  "host_permissions": [
+    "*://weread.qq.com/*"
+  ]
+}
