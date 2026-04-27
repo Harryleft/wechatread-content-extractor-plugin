@@ -115,20 +115,29 @@ class WereadExtractor {
     let content = '';
     let method = '';
 
-    // 策略 0: 用户手动选区
-    const selection = this._extractSelection();
-    if (selection) {
-      content = selection;
-      method = 'selection';
+    // 策略 0: Canvas Hook（核心策略，拦截 fillText）
+    const canvasResult = await this._extractFromCanvas();
+    if (canvasResult && canvasResult.length > 20) {
+      content = canvasResult;
+      method = 'canvas-hook';
     }
 
-    // 策略 1: DOM 提取
+    // 策略 1: 用户手动选区
+    if (!content) {
+      const selection = this._extractSelection();
+      if (selection) {
+        content = selection;
+        method = 'selection';
+      }
+    }
+
+    // 策略 2: DOM 提取（竖排模式）
     if (!content) {
       content = this._extractFromDOM();
       if (content) method = 'dom';
     }
 
-    // 策略 2: pre 元素
+    // 策略 3: pre 元素
     if (!content || content.length < 50) {
       const preContent = this._extractFromPreElements();
       if (preContent && preContent.length > content.length) {
@@ -137,7 +146,7 @@ class WereadExtractor {
       }
     }
 
-    // 策略 3: 全部可见文本
+    // 策略 4: 全部可见文本
     if (!content || content.length < 50) {
       content = this._extractVisibleText();
       if (content) method = 'visible-text';
@@ -172,7 +181,16 @@ class WereadExtractor {
 
     // 优先用选区
     const selection = this._extractSelection();
-    const content = selection || this._extractVisibleText();
+    let content = selection || '';
+
+    // 其次用 Canvas Hook
+    if (!content) {
+      const canvasText = await this._extractFromCanvas();
+      if (canvasText && canvasText.length > 20) content = canvasText;
+    }
+
+    // 最后用可见文本
+    if (!content) content = this._extractVisibleText();
 
     if (!content) {
       return { success: false, error: '当前页面无可提取内容。', meta };
@@ -192,6 +210,19 @@ class WereadExtractor {
   }
 
   // ── 提取策略 ──
+
+  async _extractFromCanvas() {
+    if (typeof window.__wereadGetCanvasText !== 'function') return '';
+    try {
+      const result = await window.__wereadGetCanvasText();
+      if (result && result.text && result.text.trim().length > 0) {
+        return result.text.trim();
+      }
+    } catch (e) {
+      console.warn('[WereadExtract] Canvas hook 提取失败:', e);
+    }
+    return '';
+  }
 
   _extractSelection() {
     const sel = window.getSelection();
