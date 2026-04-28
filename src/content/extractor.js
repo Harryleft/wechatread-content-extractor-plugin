@@ -1,7 +1,7 @@
 /**
  * WereadExtract - 内容提取核心模块
  *
- * 多策略提取：用户选区 → DOM → 页面状态 → 可见文本
+ * 整章走页面阅读器/章节接口，可见内容走选区或 Canvas 已绘制文本
  */
 
 /* eslint-disable no-undef */
@@ -36,6 +36,7 @@ class WereadExtractor {
       author: '',
       bookId: '',
       chapterTitle: '',
+      chapterUid: '',
       chapterIndex: -1,
       isCanvasMode: false
     };
@@ -55,12 +56,23 @@ class WereadExtractor {
         meta.title = state.bookInfo.title || '';
         meta.author = state.bookInfo.author || '';
       }
+      const currentChapter = state.currentChapter || {};
+      meta.chapterUid = currentChapter.chapterUid || state.reader?.chapterUid || '';
+      meta.chapterIndex = currentChapter.chapterIdx ?? -1;
+      meta.chapterTitle = currentChapter.title || '';
+
+      if (!meta.chapterTitle && meta.chapterUid && Array.isArray(state.chapterInfos)) {
+        const matched = state.chapterInfos.find((chapter) => {
+          return String(chapter.chapterUid) === String(meta.chapterUid);
+        });
+        if (matched?.title) meta.chapterTitle = matched.title;
+      }
     }
 
-    // DOM 章节标题（和 wereader 一致的选择器）
+    // 仅作为标题兜底，不参与正文提取。
     const chapterEl = document.querySelector('.readerTopBar_title_chapter')
                    || document.querySelector('.chapterItem.chapterItem_current');
-    if (chapterEl) {
+    if (!meta.chapterTitle && chapterEl) {
       meta.chapterTitle = chapterEl.textContent.replace(/^\s*|\s*$/, '');
     }
 
@@ -71,56 +83,20 @@ class WereadExtractor {
 
   async extractChapter(format = 'markdown') {
     const meta = await this.getBookMeta();
-    let content = '';
-    let method = '';
-
-    // 策略 0: Canvas Hook（核心策略，拦截 fillText）
-    const canvasResult = await this._extractFromCanvas();
-    if (canvasResult && canvasResult.length > 20) {
-      content = canvasResult;
-      method = 'canvas-hook';
-    }
-
-    // 策略 1: 用户手动选区
-    if (!content) {
-      const selection = this._extractSelection();
-      if (selection) {
-        content = selection;
-        method = 'selection';
-      }
-    }
-
-    // 策略 2: DOM 提取（竖排模式）
-    if (!content) {
-      content = this._extractFromDOM();
-      if (content) method = 'dom';
-    }
-
-    // 策略 3: pre 元素
-    if (!content || content.length < 50) {
-      const preContent = this._extractFromPreElements();
-      if (preContent && preContent.length > content.length) {
-        content = preContent;
-        method = 'pre-elements';
-      }
-    }
-
-    // 策略 4: 全部可见文本
-    if (!content || content.length < 50) {
-      content = this._extractVisibleText();
-      if (content) method = 'visible-text';
-    }
+    const chapterResult = await this._extractFullChapterContent(meta);
+    const content = chapterResult.rawContent || '';
+    const method = chapterResult.source || 'full-chapter';
 
     if (!content) {
-      const canvasHint = meta.isCanvasMode
-        ? ' 当前为 Canvas 渲染模式，请在阅读器设置中切换为竖排模式后重试。'
-        : '';
       return {
         success: false,
-        error: '无法提取内容。请确认当前页面是微信读书阅读页。' + canvasHint,
+        error: chapterResult.error || '无法获取完整章节内容。请刷新阅读页后重试。',
         meta
       };
     }
+
+    if (chapterResult.title && !meta.chapterTitle) meta.chapterTitle = chapterResult.title;
+    if (chapterResult.chapterUid && !meta.chapterUid) meta.chapterUid = chapterResult.chapterUid;
 
     const formatted = this._format(content, format, meta);
     return {
@@ -152,12 +128,6 @@ class WereadExtractor {
       }
     }
 
-    // 最后用可见文本
-    if (!content) {
-      content = this._extractVisibleText();
-      if (content) method = 'visible-text';
-    }
-
     if (!content) {
       return { success: false, error: '当前页面无可提取内容。', meta };
     }
@@ -177,7 +147,7 @@ class WereadExtractor {
 
   // ── 提取策略 ──
 
-  _requestPageBridge(requestType, responseType, timeout = 2000) {
+  _requestPageBridge(requestType, responseType, timeout = 2000, payload = {}) {
     return new Promise((resolve) => {
       const requestId = `weread-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       let settled = false;
@@ -199,8 +169,41 @@ class WereadExtractor {
 
       const timer = setTimeout(() => finish(null), timeout);
       window.addEventListener('message', handler);
-      window.postMessage({ type: requestType, requestId }, '*');
+      window.postMessage({ ...payload, type: requestType, requestId }, '*');
     });
+  }
+
+  async _extractFullChapterContent(meta) {
+    try {
+      const result = await this._requestPageBridge(
+        'WEREAD_REQ_CHAPTER_CONTENT',
+        'WEREAD_CHAPTER_CONTENT',
+        6000,
+        {
+          bookId: meta.bookId,
+          chapterUid: meta.chapterUid
+        }
+      );
+
+      if (!result?.success || !result.content) {
+        return {
+          rawContent: '',
+          error: result?.error || '页面没有返回完整章节内容。'
+        };
+      }
+
+      const normalized = this._normalizeChapterPayload(result.content);
+      return {
+        ...normalized,
+        error: normalized.rawContent ? '' : '完整章节响应为空。'
+      };
+    } catch (e) {
+      console.warn('[WereadExtract] 完整章节提取失败:', e);
+      return {
+        rawContent: '',
+        error: '完整章节提取失败: ' + e.message
+      };
+    }
   }
 
   async _extractFromCanvas() {
@@ -221,62 +224,52 @@ class WereadExtractor {
     return sel.toString().trim();
   }
 
-  _extractFromDOM() {
-    const selectors = [
-      '.readerChapterContent',
-      '.passage-content',
-      '#renderTargetContent',
-      '.readerContent',
-      '.app_reader_content'
-    ];
-
-    for (const selector of selectors) {
-      const container = document.querySelector(selector);
-      if (container) {
-        const text = container.innerText?.trim();
-        if (text && text.length > 50) return text;
-      }
-    }
-    return '';
-  }
-
-  _extractFromPreElements() {
-    const pres = document.querySelectorAll(
-      '.readerChapterContent pre, .passage-content pre, #renderTargetContent pre, .readerContent pre'
-    );
-    if (pres.length === 0) return '';
-
-    const parts = [];
-    pres.forEach((pre) => {
-      const text = pre.innerText?.trim();
-      if (text) parts.push(text);
-    });
-    return parts.join('\n\n');
-  }
-
-  _extractVisibleText() {
-    // 尝试阅读区域
-    const selectors = '.readerContent, .app_reader_content, #renderTargetContent, .readerChapterContent';
-    const contentArea = document.querySelector(selectors);
-
-    if (contentArea) {
-      // TreeWalker 获取所有文本节点
-      const walker = document.createTreeWalker(contentArea, NodeFilter.SHOW_TEXT, null);
-      const parts = [];
-      let node;
-      while ((node = walker.nextNode())) {
-        const text = node.textContent.trim();
-        if (text && text.length > 0) parts.push(text);
-      }
-      if (parts.length > 0) return parts.join('\n');
+  _normalizeChapterPayload(payload) {
+    if (typeof payload === 'string') {
+      return {
+        rawContent: this._normalizePlainText(payload),
+        source: 'full-chapter'
+      };
     }
 
-    // 最后兜底：阅读容器 innerText
-    const fallback = document.querySelector('.readerContent')
-                  || document.querySelector('.readerChapterContent');
-    if (fallback) return fallback.innerText?.trim() || '';
+    const html = payload?.html || '';
+    const text = payload?.text || '';
+    const rawContent = text
+      ? this._normalizePlainText(text)
+      : this._htmlToText(html);
 
-    return '';
+    return {
+      rawContent,
+      title: payload?.title || '',
+      chapterUid: payload?.chapterUid || '',
+      source: payload?.source || 'full-chapter'
+    };
+  }
+
+  _htmlToText(html) {
+    if (!html) return '';
+
+    const container = document.createElement('div');
+    container.innerHTML = html;
+    container.querySelectorAll('script, style, noscript').forEach((node) => node.remove());
+    container.querySelectorAll('br').forEach((node) => node.replaceWith('\n'));
+    container.querySelectorAll('p, div, section, article, li, blockquote, pre, h1, h2, h3, h4, h5, h6')
+      .forEach((node) => {
+        node.appendChild(document.createTextNode('\n\n'));
+      });
+
+    return this._normalizePlainText(container.textContent || '');
+  }
+
+  _normalizePlainText(text) {
+    return String(text || '')
+      .replace(/\u00a0/g, ' ')
+      .replace(/\r/g, '')
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/\n[ \t]+/g, '\n')
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
   }
 
   // ── 格式化 ──
