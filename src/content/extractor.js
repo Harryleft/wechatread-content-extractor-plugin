@@ -18,52 +18,11 @@ class WereadExtractor {
     if (this._state) return this._state;
     if (this._statePromise) return this._statePromise;
 
-    this._statePromise = new Promise((resolve) => {
-      const handler = (event) => {
-        if (event.data?.type === 'WEREAD_STATE') {
-          this._state = event.data.data;
-          window.removeEventListener('message', handler);
-          resolve(this._state);
-        }
-      };
-      window.addEventListener('message', handler);
-
-      const script = document.createElement('script');
-      script.textContent = `
-        (function() {
-          try {
-            var state = window.__INITIAL_STATE__;
-            if (state) {
-              var data = {
-                bookId: state.bookId || '',
-                bookInfo: state.bookInfo || {},
-                chapterInfos: (state.chapterInfos || []).map(function(c) {
-                  return { title: c.title, level: c.level, chapterUid: c.chapterUid };
-                }),
-                currentChapter: state.currentChapter || {},
-                reader: state.reader ? {
-                  bookVersion: state.reader.bookVersion,
-                  chapterUid: state.reader.chapterUid,
-                  bookId: state.reader.bookId
-                } : {}
-              };
-              window.postMessage({ type: 'WEREAD_STATE', data: data }, '*');
-            } else {
-              window.postMessage({ type: 'WEREAD_STATE', data: null }, '*');
-            }
-          } catch(e) {
-            window.postMessage({ type: 'WEREAD_STATE', data: null }, '*');
-          }
-        })();
-      `;
-      document.documentElement.appendChild(script);
-      script.remove();
-
-      setTimeout(() => {
-        window.removeEventListener('message', handler);
-        resolve(null);
-      }, 3000);
-    });
+    this._statePromise = this._requestPageBridge('WEREAD_REQ_STATE', 'WEREAD_STATE', 3000)
+      .then((response) => {
+        this._state = response?.data || null;
+        return this._state;
+      });
 
     return this._statePromise;
   }
@@ -182,15 +141,22 @@ class WereadExtractor {
     // 优先用选区
     const selection = this._extractSelection();
     let content = selection || '';
+    let method = selection ? 'selection' : '';
 
     // 其次用 Canvas Hook
     if (!content) {
       const canvasText = await this._extractFromCanvas();
-      if (canvasText && canvasText.length > 20) content = canvasText;
+      if (canvasText && canvasText.length > 20) {
+        content = canvasText;
+        method = 'canvas-hook';
+      }
     }
 
     // 最后用可见文本
-    if (!content) content = this._extractVisibleText();
+    if (!content) {
+      content = this._extractVisibleText();
+      if (content) method = 'visible-text';
+    }
 
     if (!content) {
       return { success: false, error: '当前页面无可提取内容。', meta };
@@ -203,7 +169,7 @@ class WereadExtractor {
       rawContent: content,
       meta,
       format,
-      method: selection ? 'selection' : 'visible-text',
+      method,
       charCount: formatted.length,
       wordCount: content.replace(/\s/g, '').length
     };
@@ -211,10 +177,35 @@ class WereadExtractor {
 
   // ── 提取策略 ──
 
+  _requestPageBridge(requestType, responseType, timeout = 2000) {
+    return new Promise((resolve) => {
+      const requestId = `weread-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      let settled = false;
+
+      const finish = (payload) => {
+        if (settled) return;
+        settled = true;
+        window.removeEventListener('message', handler);
+        clearTimeout(timer);
+        resolve(payload);
+      };
+
+      const handler = (event) => {
+        if (event.source !== window) return;
+        const data = event.data;
+        if (!data || data.type !== responseType || data.requestId !== requestId) return;
+        finish(data);
+      };
+
+      const timer = setTimeout(() => finish(null), timeout);
+      window.addEventListener('message', handler);
+      window.postMessage({ type: requestType, requestId }, '*');
+    });
+  }
+
   async _extractFromCanvas() {
-    if (typeof window.__wereadGetCanvasText !== 'function') return '';
     try {
-      const result = await window.__wereadGetCanvasText();
+      const result = await this._requestPageBridge('WEREAD_REQ_CANVAS', 'WEREAD_CANVAS_DATA');
       if (result && result.text && result.text.trim().length > 0) {
         return result.text.trim();
       }
