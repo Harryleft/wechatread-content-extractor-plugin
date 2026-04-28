@@ -133,8 +133,9 @@
   // ── 复制到剪贴板 ──
   btnCopy.addEventListener('click', async () => {
     if (!currentResult?.content) return;
+    const copyContent = getCopyContent(currentResult);
     try {
-      await navigator.clipboard.writeText(currentResult.content);
+      await navigator.clipboard.writeText(copyContent);
       btnCopy.textContent = '已复制!';
       btnCopy.classList.add('copied');
       setTimeout(() => {
@@ -144,7 +145,7 @@
     } catch (e) {
       // fallback
       const textarea = document.createElement('textarea');
-      textarea.value = currentResult.content;
+      textarea.value = copyContent;
       document.body.appendChild(textarea);
       textarea.select();
       document.execCommand('copy');
@@ -155,6 +156,10 @@
       }, 2000);
     }
   });
+
+  function getCopyContent(result) {
+    return result?.copyContent || result?.content || '';
+  }
 
   // ── 错误显示 ──
   function showError(message) {

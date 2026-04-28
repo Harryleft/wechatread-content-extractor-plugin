@@ -118,8 +118,9 @@
     panel.querySelector('#we-copy').addEventListener('click', async () => {
       if (!lastResult?.content) return;
       const copyBtn = panel.querySelector('#we-copy');
+      const copyContent = getCopyContent(lastResult);
       try {
-        await navigator.clipboard.writeText(lastResult.content);
+        await navigator.clipboard.writeText(copyContent);
         copyBtn.textContent = '已复制!';
         copyBtn.classList.add('we-btn-copied');
         showToast('内容已复制到剪贴板');
@@ -129,7 +130,7 @@
         }, 2000);
       } catch (e) {
         // fallback
-        fallbackCopy(lastResult.content);
+        fallbackCopy(copyContent);
         showToast('内容已复制到剪贴板');
       }
     });
@@ -269,6 +270,10 @@
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  function getCopyContent(result) {
+    return result?.copyContent || result?.content || '';
   }
 
   function fallbackCopy(text) {
