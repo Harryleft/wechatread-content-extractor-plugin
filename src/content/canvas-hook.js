@@ -1,174 +1,194 @@
 /**
- * Canvas Hook - 在 document_start 注入，拦截 Canvas fillText
+ * Canvas Hook - 在 main world 中拦截 Canvas fillText
  *
- * 原理：Proxy 包装 CanvasRenderingContext2D，在文字变成像素之前
- * 截获 fillText(text, x, y) 的绘制参数，存储文本+坐标+字号。
- * 通过 postMessage 桥接 page context ↔ content script。
+ * 该文件通过 manifest 的 world: "MAIN" 运行，避免使用内联脚本注入，
+ * 从而不触发微信读书页面的 CSP inline-script 限制。
  */
 
 (function () {
   'use strict';
 
-  // 注入到 page context 的 hook 代码
-  const hookCode = `
-(function() {
-  var CAPTURED = [];
-  var FONT_SIZE = 0;
-  var LAST_Y = 0;
+  if (window.__wereadCanvasHookInstalled) return;
+  window.__wereadCanvasHookInstalled = true;
 
-  var origGetContext = HTMLCanvasElement.prototype.getContext;
-  HTMLCanvasElement.prototype.getContext = function(type, attrs) {
-    var ctx = origGetContext.call(this, type, attrs);
-    if (type !== '2d') return ctx;
+  let captured = [];
+  let currentFontSize = 0;
+  const proxyMap = new WeakMap();
+  const originalGetContext = HTMLCanvasElement.prototype.getContext;
 
-    return new Proxy(ctx, {
-      get: function(target, prop) {
-        var value = target[prop];
+  function collectPageState() {
+    try {
+      const state = window.__INITIAL_STATE__;
+      if (!state) return null;
 
-        if (prop === 'fillText') {
-          return function(text, x, y) {
-            // 过滤反爬标记
-            if (typeof text === 'string' && text.startsWith('abcdefghijklmn')) {
-              return value.apply(target, arguments);
-            }
-            // 只捕获有意义的文本
-            if (text && typeof text === 'string' && text.trim().length > 0) {
-              CAPTURED.push({
-                t: text,
-                x: parseFloat(x) || 0,
-                y: parseFloat(y) || 0,
-                s: FONT_SIZE
-              });
-            }
-            return value.apply(target, arguments);
+      return {
+        bookId: state.bookId || '',
+        bookInfo: state.bookInfo || {},
+        chapterInfos: (state.chapterInfos || []).map(function (chapter) {
+          return {
+            title: chapter.title,
+            level: chapter.level,
+            chapterUid: chapter.chapterUid
           };
-        }
+        }),
+        currentChapter: state.currentChapter || {},
+        reader: state.reader ? {
+          bookVersion: state.reader.bookVersion,
+          chapterUid: state.reader.chapterUid,
+          bookId: state.reader.bookId
+        } : {}
+      };
+    } catch (e) {
+      return null;
+    }
+  }
 
-        if (prop === 'clearRect') {
-          return function() {
-            CAPTURED = [];
-            return value.apply(target, arguments);
-          };
-        }
+  function recordText(text, x, y) {
+    if (typeof text !== 'string') return;
+    if (!text.trim()) return;
+    if (text.startsWith('abcdefghijklmn')) return;
 
-        if (prop === 'restore') {
-          return function() {
-            // restore 时标记一批绘制完成
-            return value.apply(target, arguments);
-          };
-        }
-
-        // 其他方法直接透传
-        if (typeof value === 'function') {
-          return value.bind(target);
-        }
-        return value;
-      },
-
-      set: function(target, prop, val) {
-        if (prop === 'font') {
-          var parts = (val || '').split(' ');
-          for (var i = 0; i < parts.length; i++) {
-            if (parts[i].endsWith('px')) {
-              FONT_SIZE = parseInt(parts[i]) || 0;
-              break;
-            }
-          }
-        }
-        target[prop] = val;
-        return true;
-      }
+    captured.push({
+      t: text,
+      x: parseFloat(x) || 0,
+      y: parseFloat(y) || 0,
+      s: currentFontSize
     });
-  };
+  }
 
-  // 监听 content script 的数据请求
-  window.addEventListener('message', function(e) {
-    if (!e.data || e.data.type !== 'WEREAD_REQ_CANVAS') return;
-
-    // 排序并组装文本
-    var sorted = CAPTURED.slice().sort(function(a, b) {
+  function buildCanvasText() {
+    const sorted = captured.slice().sort(function (a, b) {
       return a.y - b.y || a.x - b.x;
     });
 
-    // 按 Y 坐标分组成行（Y 差距 < 3px 视为同一行）
-    var lines = [];
-    var cur = null;
-    for (var i = 0; i < sorted.length; i++) {
-      var item = sorted[i];
-      if (!cur || Math.abs(item.y - cur.y) > 3) {
-        if (cur) lines.push(cur);
-        cur = { y: item.y, parts: [{ x: item.x, t: item.t }], fs: item.s };
+    const lines = [];
+    let currentLine = null;
+
+    for (let i = 0; i < sorted.length; i += 1) {
+      const item = sorted[i];
+      if (!currentLine || Math.abs(item.y - currentLine.y) > 3) {
+        if (currentLine) lines.push(currentLine);
+        currentLine = {
+          y: item.y,
+          parts: [{ x: item.x, t: item.t }],
+          fontSize: item.s
+        };
       } else {
-        cur.parts.push({ x: item.x, t: item.t });
+        currentLine.parts.push({ x: item.x, t: item.t });
       }
     }
-    if (cur) lines.push(cur);
 
-    // 行内按 X 排序，拼接文本
-    var result = [];
-    var prevY = 0;
-    for (var j = 0; j < lines.length; j++) {
-      var line = lines[j];
-      line.parts.sort(function(a, b) { return a.x - b.x; });
-      var text = line.parts.map(function(p) { return p.t; }).join('');
+    if (currentLine) lines.push(currentLine);
 
-      // 大 Y 间距 → 段落分隔
-      if (prevY > 0 && line.y - prevY > 35) {
+    const result = [];
+    let previousY = 0;
+
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i];
+      line.parts.sort(function (a, b) {
+        return a.x - b.x;
+      });
+
+      const text = line.parts.map(function (part) {
+        return part.t;
+      }).join('');
+
+      if (previousY > 0 && line.y - previousY > 35) {
         result.push('');
       }
 
-      // 字号判断标题
-      if (line.fs >= 27) {
+      if (line.fontSize >= 27) {
         result.push('## ' + text);
-      } else if (line.fs >= 23) {
+      } else if (line.fontSize >= 23) {
         result.push('### ' + text);
       } else {
         result.push(text);
       }
-      prevY = line.y;
+
+      previousY = line.y;
     }
 
-    var output = result.join('\\n');
-
-    window.postMessage({
-      type: 'WEREAD_CANVAS_DATA',
+    return {
       raw: sorted,
-      text: output,
+      text: result.join('\n'),
       count: sorted.length
-    }, '*');
-  });
-})();
-`;
+    };
+  }
 
-  // 注入到 page context
-  const script = document.createElement('script');
-  script.textContent = hookCode;
-  (document.head || document.documentElement).appendChild(script);
-  script.remove();
+  function installCanvasHook() {
+    HTMLCanvasElement.prototype.getContext = function () {
+      const context = originalGetContext.apply(this, arguments);
+      if (arguments[0] !== '2d' || !context) return context;
+      if (proxyMap.has(context)) return proxyMap.get(context);
 
-  // 暴露给 extractor.js 的数据读取函数
-  window.__wereadGetCanvasText = function () {
-    return new Promise(function (resolve) {
-      var handler = function (e) {
-        if (e.data && e.data.type === 'WEREAD_CANVAS_DATA') {
-          window.removeEventListener('message', handler);
-          resolve({
-            text: e.data.text || '',
-            count: e.data.count || 0,
-            raw: e.data.raw || []
-          });
+      const proxy = new Proxy(context, {
+        get: function (target, prop) {
+          const value = target[prop];
+
+          if (prop === 'fillText') {
+            return function (text, x, y) {
+              recordText(text, x, y);
+              return value.apply(target, arguments);
+            };
+          }
+
+          if (prop === 'clearRect') {
+            return function () {
+              captured = [];
+              return value.apply(target, arguments);
+            };
+          }
+
+          if (typeof value === 'function') {
+            return value.bind(target);
+          }
+
+          return value;
+        },
+
+        set: function (target, prop, value) {
+          if (prop === 'font') {
+            const parts = String(value || '').split(' ');
+            for (let i = 0; i < parts.length; i += 1) {
+              if (parts[i].endsWith('px')) {
+                currentFontSize = parseInt(parts[i], 10) || 0;
+                break;
+              }
+            }
+          }
+
+          target[prop] = value;
+          return true;
         }
-      };
-      window.addEventListener('message', handler);
+      });
 
-      // 请求 page context 返回捕获的数据
-      window.postMessage({ type: 'WEREAD_REQ_CANVAS' }, '*');
+      proxyMap.set(context, proxy);
+      return proxy;
+    };
+  }
 
-      // 超时
-      setTimeout(function () {
-        window.removeEventListener('message', handler);
-        resolve({ text: '', count: 0, raw: [] });
-      }, 2000);
-    });
-  };
+  window.addEventListener('message', function (event) {
+    if (event.source !== window || !event.data || typeof event.data !== 'object') return;
+
+    if (event.data.type === 'WEREAD_REQ_STATE') {
+      window.postMessage({
+        type: 'WEREAD_STATE',
+        requestId: event.data.requestId,
+        data: collectPageState()
+      }, '*');
+    }
+
+    if (event.data.type === 'WEREAD_REQ_CANVAS') {
+      const result = buildCanvasText();
+      window.postMessage({
+        type: 'WEREAD_CANVAS_DATA',
+        requestId: event.data.requestId,
+        raw: result.raw,
+        text: result.text,
+        count: result.count
+      }, '*');
+    }
+  });
+
+  installCanvasHook();
 })();
