@@ -21,22 +21,12 @@
   // ── 配置 ──
   const CONFIG = {
     fabId: 'weread-extract-fab',
-    panelId: 'weread-extract-panel',
-    formats: ['markdown', 'text', 'html'],
-    defaultFormat: 'markdown'
+    panelId: 'weread-extract-panel'
   };
 
   // ── 状态 ──
   let panelVisible = false;
   let lastResult = null;
-  let preferredFormat = CONFIG.defaultFormat;
-
-  // 从 storage 加载偏好
-  chrome.storage?.local?.get(['wereadExtractFormat'], (result) => {
-    if (result?.wereadExtractFormat) {
-      preferredFormat = result.wereadExtractFormat;
-    }
-  });
 
   // ── 创建浮动按钮 ──
   function createFAB() {
@@ -67,14 +57,6 @@
         <button class="we-close" title="关闭">&times;</button>
       </div>
       <div class="we-body">
-        <div class="we-format-group">
-          <label>格式：</label>
-          <div class="we-format-btns">
-            <button class="we-fmt-btn active" data-format="markdown">Markdown</button>
-            <button class="we-fmt-btn" data-format="text">纯文本</button>
-            <button class="we-fmt-btn" data-format="html">HTML</button>
-          </div>
-        </div>
         <div class="we-actions">
           <button class="we-btn we-btn-primary" id="we-extract-visible">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -110,35 +92,13 @@
     // 关闭按钮
     panel.querySelector('.we-close').addEventListener('click', () => togglePanel(false));
 
-    // 格式切换
-    panel.querySelectorAll('.we-fmt-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        panel.querySelectorAll('.we-fmt-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        preferredFormat = btn.dataset.format;
-        chrome.storage?.local?.set({ wereadExtractFormat: preferredFormat });
-
-        // 如果已有结果，重新格式化
-        if (lastResult?.success) {
-          reformatResult(lastResult);
-        }
-      });
-    });
-
-    // 设置初始激活格式
-    const activeBtn = panel.querySelector(`.we-fmt-btn[data-format="${preferredFormat}"]`);
-    if (activeBtn) {
-      panel.querySelectorAll('.we-fmt-btn').forEach(b => b.classList.remove('active'));
-      activeBtn.classList.add('active');
-    }
-
     // 提取可见内容
     panel.querySelector('#we-extract-visible').addEventListener('click', async () => {
       const btn = panel.querySelector('#we-extract-visible');
       btn.disabled = true;
       btn.textContent = '提取中...';
       try {
-        lastResult = await EXTRACTOR.extractVisible(preferredFormat);
+        lastResult = await EXTRACTOR.extractVisible();
         displayResult(lastResult);
       } catch (e) {
         displayError(e.message);
@@ -209,32 +169,6 @@
 
     // 启用复制按钮
     copyBtn.disabled = false;
-  }
-
-  // ── 重新格式化已有结果 ──
-  async function reformatResult(result) {
-    if (!result?.rawContent) return;
-    const meta = result.meta || {};
-    const extractor = EXTRACTOR;
-
-    // 重新提取同一段内容，换格式
-    let formatted;
-    if (preferredFormat === 'markdown') {
-      formatted = extractor._toMarkdown(result.rawContent, meta);
-    } else if (preferredFormat === 'html') {
-      formatted = extractor._toHTML(result.rawContent, meta);
-    } else {
-      formatted = extractor._toPlainText(result.rawContent, meta);
-    }
-
-    lastResult = {
-      ...result,
-      content: formatted,
-      format: preferredFormat,
-      charCount: formatted.length
-    };
-
-    displayResult(lastResult);
   }
 
   // ── 显示错误 ──
@@ -313,11 +247,11 @@
   // ── 监听来自 popup 的消息 ──
   chrome.runtime?.onMessage?.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'EXTRACT_CHAPTER') {
-      EXTRACTOR.extractVisible(msg.format || preferredFormat).then(sendResponse);
+      EXTRACTOR.extractVisible().then(sendResponse);
       return true; // 异步响应
     }
     if (msg.type === 'EXTRACT_VISIBLE') {
-      EXTRACTOR.extractVisible(msg.format || preferredFormat).then(sendResponse);
+      EXTRACTOR.extractVisible().then(sendResponse);
       return true;
     }
     if (msg.type === 'GET_META') {

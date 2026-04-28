@@ -81,7 +81,7 @@ class WereadExtractor {
 
   // ── 提取入口 ──
 
-  async extractChapter(format = 'markdown') {
+  async extractChapter() {
     const meta = await this.getBookMeta();
     const chapterResult = await this._extractFullChapterContent(meta);
     const content = chapterResult.rawContent || '';
@@ -98,20 +98,20 @@ class WereadExtractor {
     if (chapterResult.title && !meta.chapterTitle) meta.chapterTitle = chapterResult.title;
     if (chapterResult.chapterUid && !meta.chapterUid) meta.chapterUid = chapterResult.chapterUid;
 
-    const formatted = this._format(content, format, meta);
+    const formatted = this._toMarkdown(content, meta);
     return {
       success: true,
       content: formatted,
       rawContent: content,
       meta,
-      format,
+      format: 'markdown',
       method,
       charCount: formatted.length,
       wordCount: content.replace(/\s/g, '').length
     };
   }
 
-  async extractVisible(format = 'markdown') {
+  async extractVisible() {
     const meta = await this.getBookMeta();
 
     // 优先用选区
@@ -132,13 +132,13 @@ class WereadExtractor {
       return { success: false, error: '当前页面无可提取内容。', meta };
     }
 
-    const formatted = this._format(content, format, meta);
+    const formatted = this._toMarkdown(content, meta);
     return {
       success: true,
       content: formatted,
       rawContent: content,
       meta,
-      format,
+      format: 'markdown',
       method,
       charCount: formatted.length,
       wordCount: content.replace(/\s/g, '').length
@@ -274,14 +274,6 @@ class WereadExtractor {
 
   // ── 格式化 ──
 
-  _format(content, format, meta) {
-    switch (format) {
-      case 'markdown': return this._toMarkdown(content, meta);
-      case 'html': return this._toHTML(content, meta);
-      default: return this._toPlainText(content, meta);
-    }
-  }
-
   _toMarkdown(content, meta) {
     let md = '';
     if (meta.title) {
@@ -294,41 +286,6 @@ class WereadExtractor {
     md += '\n\n---\n';
     md += `> 提取自微信读书 · ${new Date().toLocaleString('zh-CN')}`;
     return md;
-  }
-
-  _toHTML(content, meta) {
-    let html = '';
-    if (meta.title) {
-      html += `<h1>${this._esc(meta.title)}`;
-      if (meta.author) html += ` - ${this._esc(meta.author)}`;
-      html += '</h1>\n';
-    }
-    if (meta.chapterTitle) html += `<h2>${this._esc(meta.chapterTitle)}</h2>\n`;
-    content.split(/\n\n+/).forEach((p) => {
-      const t = p.trim();
-      if (t) html += `<p>${this._esc(t)}</p>\n`;
-    });
-    html += `<hr><p><em>提取自微信读书 · ${new Date().toLocaleString('zh-CN')}</em></p>`;
-    return html;
-  }
-
-  _toPlainText(content, meta) {
-    let text = '';
-    if (meta.title) {
-      text += meta.title;
-      if (meta.author) text += ` - ${meta.author}`;
-      text += '\n\n';
-    }
-    if (meta.chapterTitle) text += meta.chapterTitle + '\n\n';
-    text += content;
-    text += '\n\n---\n提取自微信读书 · ' + new Date().toLocaleString('zh-CN');
-    return text;
-  }
-
-  _esc(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
   }
 }
 

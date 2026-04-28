@@ -6,10 +6,6 @@
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'install') {
     console.log('[WereadExtract] 已安装');
-    // 设置默认格式
-    chrome.storage.local.set({
-      wereadExtractFormat: 'markdown'
-    });
   }
 });
 

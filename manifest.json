@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Weread Extract",
   "version": "1.0.0",
-  "description": "一键提取微信读书章节内容，支持 Markdown/纯文本/HTML 格式输出，快速交给 AI 分析",
+  "description": "一键提取微信读书内容为 Markdown，快速交给 AI 分析",
   "background": {
     "service_worker": "src/background/service-worker.js"
   },

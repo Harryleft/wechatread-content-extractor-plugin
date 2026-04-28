@@ -19,18 +19,9 @@
   const errorSection = document.getElementById('error-section');
 
   let currentResult = null;
-  let selectedFormat = 'markdown';
 
   // ── 初始化 ──
   async function init() {
-    // 加载格式偏好
-    chrome.storage?.local?.get(['wereadExtractFormat'], (result) => {
-      if (result?.wereadExtractFormat) {
-        selectedFormat = result.wereadExtractFormat;
-        updateFormatButtons();
-      }
-    });
-
     // 检测当前是否在微信读书页面
     await checkWereadTab();
   }
@@ -82,26 +73,6 @@
     }
   }
 
-  // ── 格式按钮 ──
-  function updateFormatButtons() {
-    document.querySelectorAll('.fmt-btn').forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.format === selectedFormat);
-    });
-  }
-
-  document.querySelectorAll('.fmt-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      selectedFormat = btn.dataset.format;
-      updateFormatButtons();
-      chrome.storage?.local?.set({ wereadExtractFormat: selectedFormat });
-
-      // 如果已有结果，重新格式化
-      if (currentResult?.success && currentResult.rawContent) {
-        reformat();
-      }
-    });
-  });
-
   // ── 提取可见内容 ──
   btnExtractVisible.addEventListener('click', async () => {
     await extract();
@@ -122,8 +93,7 @@
       }
 
       const response = await chrome.tabs.sendMessage(tab.id, {
-        type: 'EXTRACT_VISIBLE',
-        format: selectedFormat
+        type: 'EXTRACT_VISIBLE'
       });
 
       if (!response) {
@@ -158,14 +128,6 @@
 
     previewContent.textContent = displayText;
     charCount.textContent = `${result.wordCount} 字 · ${result.charCount} 字符`;
-  }
-
-  // ── 重新格式化 ──
-  function reformat() {
-    if (!currentResult?.rawContent) return;
-    // 重新发送提取请求（使用已有 rawContent，仅改变格式）
-    // 这里简化处理，让 content script 重新提取
-    extract();
   }
 
   // ── 复制到剪贴板 ──

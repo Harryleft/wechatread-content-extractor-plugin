@@ -103,49 +103,6 @@
   flex: 1;
 }
 
-/* ── 格式选择 ── */
-.we-format-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.we-format-group label {
-  color: #a6adc8;
-  font-size: 13px;
-  flex-shrink: 0;
-}
-
-.we-format-btns {
-  display: flex;
-  gap: 4px;
-  background: #181825;
-  border-radius: 8px;
-  padding: 3px;
-}
-
-.we-fmt-btn {
-  background: none;
-  border: none;
-  color: #6c7086;
-  padding: 4px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 12px;
-  transition: all 0.15s;
-}
-
-.we-fmt-btn:hover {
-  color: #cdd6f4;
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.we-fmt-btn.active {
-  background: #4f46e5;
-  color: #fff;
-}
-
 /* ── 操作按钮 ── */
 .we-actions {
   display: flex;
