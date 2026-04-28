@@ -23,7 +23,8 @@
     {
       "matches": ["*://weread.qq.com/web/reader/*"],
       "js": ["src/content/canvas-hook.js"],
-      "run_at": "document_start"
+      "run_at": "document_start",
+      "world": "MAIN"
     },
     {
       "matches": ["*://weread.qq.com/web/reader/*"],
