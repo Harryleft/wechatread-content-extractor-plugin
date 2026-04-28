@@ -76,14 +76,7 @@
           </div>
         </div>
         <div class="we-actions">
-          <button class="we-btn we-btn-primary" id="we-extract-chapter">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-            </svg>
-            提取当前章节
-          </button>
-          <button class="we-btn we-btn-secondary" id="we-extract-visible">
+          <button class="we-btn we-btn-primary" id="we-extract-visible">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
               <circle cx="12" cy="12" r="3"/>
@@ -138,28 +131,6 @@
       panel.querySelectorAll('.we-fmt-btn').forEach(b => b.classList.remove('active'));
       activeBtn.classList.add('active');
     }
-
-    // 提取章节
-    panel.querySelector('#we-extract-chapter').addEventListener('click', async () => {
-      const btn = panel.querySelector('#we-extract-chapter');
-      btn.disabled = true;
-      btn.textContent = '提取中...';
-      try {
-        lastResult = await EXTRACTOR.extractChapter(preferredFormat);
-        displayResult(lastResult);
-      } catch (e) {
-        displayError(e.message);
-      } finally {
-        btn.disabled = false;
-        btn.innerHTML = `
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-          </svg>
-          提取当前章节
-        `;
-      }
-    });
 
     // 提取可见内容
     panel.querySelector('#we-extract-visible').addEventListener('click', async () => {
@@ -342,7 +313,7 @@
   // ── 监听来自 popup 的消息 ──
   chrome.runtime?.onMessage?.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'EXTRACT_CHAPTER') {
-      EXTRACTOR.extractChapter(msg.format || preferredFormat).then(sendResponse);
+      EXTRACTOR.extractVisible(msg.format || preferredFormat).then(sendResponse);
       return true; // 异步响应
     }
     if (msg.type === 'EXTRACT_VISIBLE') {

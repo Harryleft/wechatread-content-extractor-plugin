@@ -8,7 +8,6 @@
   // ── DOM 引用 ──
   const statusBar = document.getElementById('status-bar');
   const statusText = document.getElementById('status-text');
-  const btnExtractChapter = document.getElementById('btn-extract-chapter');
   const btnExtractVisible = document.getElementById('btn-extract-visible');
   const btnCopy = document.getElementById('btn-copy');
   const metaSection = document.getElementById('meta-section');
@@ -50,7 +49,6 @@
 
       if (response?.ok) {
         setStatus('active', '微信读书已就绪');
-        btnExtractChapter.disabled = false;
         btnExtractVisible.disabled = false;
 
         // 获取书籍元信息
@@ -104,19 +102,14 @@
     });
   });
 
-  // ── 提取章节 ──
-  btnExtractChapter.addEventListener('click', async () => {
-    await extract('EXTRACT_CHAPTER');
-  });
-
   // ── 提取可见内容 ──
   btnExtractVisible.addEventListener('click', async () => {
-    await extract('EXTRACT_VISIBLE');
+    await extract();
   });
 
   // ── 通用提取方法 ──
-  async function extract(type) {
-    const btn = type === 'EXTRACT_CHAPTER' ? btnExtractChapter : btnExtractVisible;
+  async function extract() {
+    const btn = btnExtractVisible;
     btn.disabled = true;
     btn.textContent = '提取中...';
     hideError();
@@ -129,7 +122,7 @@
       }
 
       const response = await chrome.tabs.sendMessage(tab.id, {
-        type,
+        type: 'EXTRACT_VISIBLE',
         format: selectedFormat
       });
 
@@ -151,9 +144,7 @@
       showError('通信失败: ' + e.message);
     } finally {
       btn.disabled = false;
-      btn.innerHTML = type === 'EXTRACT_CHAPTER'
-        ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg> 提取当前章节'
-        : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> 提取可见内容';
+      btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> 提取可见内容';
     }
   }
 
@@ -174,7 +165,7 @@
     if (!currentResult?.rawContent) return;
     // 重新发送提取请求（使用已有 rawContent，仅改变格式）
     // 这里简化处理，让 content script 重新提取
-    extract(currentResult.format === 'visible' ? 'EXTRACT_VISIBLE' : 'EXTRACT_CHAPTER');
+    extract();
   }
 
   // ── 复制到剪贴板 ──
