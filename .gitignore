@@ -1,5 +1,4 @@
-.DS_Store
-*.crx
-*.pem
-*.zip
-node_modules/
+diss/
+tests/
+CLAUDE.md
+AGENTS.md
