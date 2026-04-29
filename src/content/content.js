@@ -67,11 +67,8 @@
           </button>
         </div>
         <div class="we-meta" id="we-meta"></div>
-        <div class="we-selection-hint" id="we-selection-hint" style="display:none;">
-          📝 已检测到选中文本，提取时将优先使用选中内容
-        </div>
         <div class="we-preview" id="we-preview">
-          <div class="we-preview-placeholder">点击上方按钮提取内容<br><small>也可先选中文字再提取</small></div>
+          <div class="we-preview-placeholder">点击上方按钮提取内容</div>
         </div>
         <div class="we-footer">
           <span class="we-stats" id="we-stats"></span>
@@ -289,18 +286,6 @@
     document.execCommand('copy');
     textarea.remove();
   }
-
-  // ── 监听选区变化 ──
-  document.addEventListener('selectionchange', () => {
-    const hint = document.getElementById('we-selection-hint');
-    if (!hint) return;
-    const sel = window.getSelection();
-    if (sel && !sel.isCollapsed && sel.toString().trim().length > 0) {
-      hint.style.display = 'block';
-    } else {
-      hint.style.display = 'none';
-    }
-  });
 
   // ── 初始化 ──
   createFAB();

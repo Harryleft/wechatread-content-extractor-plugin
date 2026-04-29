@@ -189,17 +189,6 @@
   line-height: 1.6;
 }
 
-/* ── 选区提示 ── */
-.we-selection-hint {
-  font-size: 11px;
-  color: #16a34a;
-  background: rgba(22, 163, 74, 0.06);
-  border: 1px solid rgba(22, 163, 74, 0.12);
-  border-radius: 6px;
-  padding: 6px 10px;
-  margin-bottom: 8px;
-}
-
 /* ── 预览区域 ── */
 .we-preview {
   background: #f8f9fa;
