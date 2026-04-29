@@ -286,8 +286,15 @@ class WereadExtractor {
       if (meta.author) md += ` - ${meta.author}`;
       md += '\n\n';
     }
+    // 去掉内容中 Canvas 渲染已带有的章节标题（字号大被转为 ##），避免重复
+    let body = content;
+    if (meta.chapterTitle) {
+      const esc = meta.chapterTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      body = body.replace(new RegExp('^## ' + esc + '\\n*'), '')
+                 .replace(new RegExp('^### ' + esc + '\\n*'), '');
+    }
     if (meta.chapterTitle) md += `## ${meta.chapterTitle}\n\n`;
-    md += content;
+    md += body;
     md += '\n\n---\n';
     md += `> 提取自微信读书 · ${new Date().toLocaleString('zh-CN')}`;
     return md;
