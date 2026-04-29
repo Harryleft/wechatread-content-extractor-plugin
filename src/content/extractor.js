@@ -10,14 +10,17 @@ class WereadExtractor {
   constructor() {
     this._state = null;
     this._statePromise = null;
+    this._lastStateUrl = null;
   }
 
   // ── 页面状态 ──
 
   async getPageState() {
-    if (this._state) return this._state;
-    if (this._statePromise) return this._statePromise;
+    if (this._state && location.href === this._lastStateUrl) return this._state;
+    if (this._statePromise && location.href === this._lastStateUrl) return this._statePromise;
 
+    this._lastStateUrl = location.href;
+    this._state = null;
     this._statePromise = this._requestPageBridge('WEREAD_REQ_STATE', 'WEREAD_STATE', 3000)
       .then((response) => {
         this._state = response?.data || null;
