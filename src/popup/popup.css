@@ -35,7 +35,7 @@ body {
 }
 
 .popup-title svg {
-  color: #2563eb;
+  color: #0087fc;
 }
 
 .popup-version {
@@ -129,12 +129,12 @@ body {
 }
 
 .btn-primary {
-  background: #2563eb;
+  background: #0087fc;
   color: #fff;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #1d4ed8;
+  background: #0070d6;
 }
 
 .btn-secondary {
@@ -148,13 +148,13 @@ body {
 }
 
 .btn-copy {
-  background: #2563eb;
+  background: #0087fc;
   color: #fff;
   font-size: 13px;
 }
 
 .btn-copy:hover:not(:disabled) {
-  background: #1d4ed8;
+  background: #0070d6;
 }
 
 .btn-copy.copied {

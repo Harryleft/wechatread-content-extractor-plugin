@@ -8,13 +8,13 @@
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: #2563eb;
+  background: #0087fc;
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.25);
+  box-shadow: 0 4px 16px rgba(0, 135, 252, 0.25);
   z-index: 99999;
   transition: transform 0.2s ease-out, box-shadow 0.2s ease-out, background 0.2s ease-out;
   user-select: none;
@@ -22,8 +22,8 @@
 
 #weread-extract-fab:hover {
   transform: scale(1.1);
-  box-shadow: 0 6px 24px rgba(37, 99, 235, 0.35);
-  background: #1d4ed8;
+  box-shadow: 0 6px 24px rgba(0, 135, 252, 0.35);
+  background: #0070d6;
 }
 
 #weread-extract-fab:active {
@@ -132,12 +132,12 @@
 }
 
 .we-btn-primary {
-  background: #2563eb;
+  background: #0087fc;
   color: #fff;
 }
 
 .we-btn-primary:hover:not(:disabled) {
-  background: #1d4ed8;
+  background: #0070d6;
 }
 
 .we-btn-secondary {
@@ -151,14 +151,14 @@
 }
 
 .we-btn-copy {
-  background: #2563eb;
+  background: #0087fc;
   color: #fff;
   padding: 6px 16px;
   font-size: 12px;
 }
 
 .we-btn-copy:hover:not(:disabled) {
-  background: #1d4ed8;
+  background: #0070d6;
 }
 
 .we-btn-copied {
