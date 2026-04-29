@@ -220,26 +220,33 @@
   }
 
   // ── FAB 点击处理 ──
-  function handleFABClick() {
-    if (!document.getElementById(CONFIG.panelId)) {
-      createPanel();
-      // 初始动画：先 hidden 再 visible
-      const panel = document.getElementById(CONFIG.panelId);
-      panel.classList.add('we-panel-hidden');
-      requestAnimationFrame(() => togglePanel(true));
-    } else {
-      togglePanel();
+  async function handleFABClick() {
+    const fab = document.getElementById(CONFIG.fabId);
+    if (!fab || fab.classList.contains('we-fab-loading')) return;
+
+    fab.classList.add('we-fab-loading');
+    try {
+      const result = await EXTRACTOR.extractVisible();
+      if (result.success) {
+        const copyContent = getCopyContent(result);
+        try {
+          await navigator.clipboard.writeText(copyContent);
+        } catch {
+          fallbackCopy(copyContent);
+        }
+        showToast(`已复制 ${result.wordCount} 字`);
+      } else {
+        showToast(result.error || '提取失败');
+      }
+    } catch (e) {
+      showToast('提取失败: ' + e.message);
+    } finally {
+      fab.classList.remove('we-fab-loading');
     }
   }
 
   // ── 键盘快捷键 ──
   document.addEventListener('keydown', (e) => {
-    // Alt+W 切换面板
-    if (e.altKey && e.key === 'w') {
-      e.preventDefault();
-      handleFABClick();
-    }
-    // Esc 关闭面板
     if (e.key === 'Escape' && panelVisible) {
       togglePanel(false);
     }
@@ -301,5 +308,5 @@
 
   // ── 初始化 ──
   createFAB();
-  console.log('[WereadExtract] 已加载 · Alt+W 打开面板');
+  console.log('[WereadExtract] 已加载 · 点击右下角按钮一键提取');
 })();

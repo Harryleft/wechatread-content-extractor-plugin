@@ -30,6 +30,21 @@
   transform: scale(0.95);
 }
 
+/* FAB loading 旋转动画 */
+.we-fab-loading {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.we-fab-loading svg {
+  animation: we-fab-spin 0.8s linear infinite;
+}
+
+@keyframes we-fab-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* ── 面板 ── */
 #weread-extract-panel {
   position: fixed;
