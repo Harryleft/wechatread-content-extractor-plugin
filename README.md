@@ -102,17 +102,9 @@ Weread Extract 在 `document_start` 阶段安装 Proxy Hook，拦截 `HTMLCanvas
 | fontSize ≥ 23px | 小节标题 | `### ` 前缀 |
 | 文本以 `abcdefghijklmn` 开头 | 反爬水印 | 过滤丢弃 |
 
-### 提取策略
+### 提取方式
 
-按优先级降级，Canvas Hook 不可用时自动回退：
-
-| 优先级 | 策略 | 说明 |
-|--------|------|------|
-| 0 | Canvas Hook | 拦截 fillText()，最可靠 |
-| 1 | 用户选区 | `window.getSelection()` |
-| 2 | DOM 提取 | `.readerChapterContent` 等选择器 |
-| 3 | pre 元素 | 阅读容器内 pre 标签拼接 |
-| 4 | 可见文本 | TreeWalker 遍历文本节点 |
+微信读书正文完全通过 Canvas 渲染，Weread Extract 通过拦截 `fillText()` 调用来获取文本。这是唯一可行的方案——DOM 中不存在书籍文本，无需多策略降级。
 
 ---
 
@@ -128,7 +120,7 @@ wechatread-content-extractor-plugin/
 │   │   └── service-worker.js    # Service Worker，消息中转
 │   ├── content/
 │   │   ├── canvas-hook.js       # Canvas Proxy Hook (MAIN world, document_start)
-│   │   ├── extractor.js         # 多策略提取核心 (Isolated world)
+│   │   ├── extractor.js         # 提取核心 (Isolated world) — Canvas Hook + Markdown 格式化
 │   │   ├── content.js           # FAB 按钮 + 一键提取 + Popup 通信
 │   │   └── content.css          # 浅色主题样式
 │   ├── popup/
@@ -153,7 +145,7 @@ wechatread-content-extractor-plugin/
 - **Manifest V3 + `world: "MAIN"`** — 绕过微信读书 CSP 限制，直接在页面上下文注入 Hook
 - **WeakMap 缓存** — 同一 Canvas Context 不会被重复 Proxy 包装
 - **双向通信桥** — `postMessage` + `requestId` 路由实现 MAIN world 与 Isolated world 通信
-- **多策略降级** — Canvas Hook → 用户选区 → DOM 提取 → pre 元素 → TreeWalker，层层兜底
+- **坐标排序重组** — 按 Y/X 坐标将 fillText 片段还原为阅读顺序，识别段落和标题
 
 ---
 

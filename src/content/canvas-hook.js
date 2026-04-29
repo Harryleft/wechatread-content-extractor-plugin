@@ -1,8 +1,8 @@
 /**
- * Canvas Hook - 在 main world 中桥接微信读书页面数据
+ * Canvas Hook - 在 main world 中拦截微信读书 Canvas 渲染
  *
- * 该文件通过 manifest 的 world: "MAIN" 运行，避免使用内联脚本注入，
- * 从而不触发微信读书页面的 CSP inline-script 限制。
+ * 该文件通过 manifest 的 world: "MAIN" 运行，绕过微信读书页面的 CSP inline-script 限制。
+ * 拦截 HTMLCanvasElement.getContext('2d')，截获 fillText() 调用以提取正文文本。
  */
 
 (function () {
@@ -14,36 +14,31 @@
   let captured = [];
   let currentFontSize = 0;
   const proxyMap = new WeakMap();
-  const chapterResponseCache = [];
   const originalGetContext = HTMLCanvasElement.prototype.getContext;
-  const originalFetch = window.fetch;
-  const originalXhrOpen = XMLHttpRequest.prototype.open;
-  const originalXhrSend = XMLHttpRequest.prototype.send;
-  const maxCacheItems = 30;
-  const maxResponseTextLength = 2000000;
+
+  // ── 页面状态 ──
 
   function collectPageState() {
     try {
       const state = window.__INITIAL_STATE__;
-      const readerVm = findReaderVm();
-      const currentChapter = readerVm?.currentChapter || state?.currentChapter || {};
+      const currentChapter = state?.currentChapter || {};
       const reader = state?.reader || {};
 
-      if (!state && !readerVm) return null;
+      if (!state) return null;
 
       return {
-        bookId: state?.bookId || reader.bookId || readerVm?.bookInfo?.bookId || '',
-        bookInfo: state?.bookInfo || readerVm?.bookInfo || {},
-        chapterInfos: normalizeChapterInfos(state?.chapterInfos || readerVm?.chapterInfos || []),
+        bookId: state?.bookId || reader.bookId || '',
+        bookInfo: state?.bookInfo || {},
+        chapterInfos: normalizeChapterInfos(state?.chapterInfos || []),
         currentChapter: {
           title: currentChapter.title || '',
-          chapterUid: currentChapter.chapterUid || reader.chapterUid || readerVm?.chapterUid || '',
+          chapterUid: currentChapter.chapterUid || reader.chapterUid || '',
           chapterIdx: currentChapter.chapterIdx
         },
         reader: {
           bookVersion: reader.bookVersion,
-          chapterUid: reader.chapterUid || currentChapter.chapterUid || readerVm?.chapterUid || '',
-          bookId: reader.bookId || state?.bookId || readerVm?.bookInfo?.bookId || ''
+          chapterUid: reader.chapterUid || currentChapter.chapterUid || '',
+          bookId: reader.bookId || state?.bookId || ''
         }
       };
     } catch (e) {
@@ -63,6 +58,8 @@
       };
     });
   }
+
+  // ── Canvas fillText 拦截 ──
 
   function recordText(text, x, y) {
     if (typeof text !== 'string') return;
@@ -190,516 +187,7 @@
     };
   }
 
-  function installNetworkHook() {
-    if (typeof originalFetch === 'function') {
-      window.fetch = function () {
-        const url = normalizeRequestUrl(arguments[0]);
-
-        return originalFetch.apply(this, arguments).then(function (response) {
-          inspectFetchResponse(url, response);
-          return response;
-        });
-      };
-    }
-
-    XMLHttpRequest.prototype.open = function (method, url) {
-      this.__wereadRequestUrl = normalizeRequestUrl(url);
-      return originalXhrOpen.apply(this, arguments);
-    };
-
-    XMLHttpRequest.prototype.send = function () {
-      this.addEventListener('load', function () {
-        inspectXhrResponse(this);
-      });
-      return originalXhrSend.apply(this, arguments);
-    };
-  }
-
-  function normalizeRequestUrl(input) {
-    if (typeof input === 'string') return input;
-    if (input && typeof input.url === 'string') return input.url;
-    return '';
-  }
-
-  function inspectFetchResponse(url, response) {
-    if (!isPotentialChapterUrl(url) || !response || typeof response.clone !== 'function') return;
-
-    try {
-      response.clone().text().then(function (text) {
-        rememberChapterResponse(url, text);
-      }).catch(function () {});
-    } catch (e) {}
-  }
-
-  function inspectXhrResponse(xhr) {
-    const url = xhr.__wereadRequestUrl || '';
-    if (!isPotentialChapterUrl(url)) return;
-    if (xhr.responseType && xhr.responseType !== 'text' && xhr.responseType !== 'json') return;
-
-    try {
-      const text = typeof xhr.response === 'string' ? xhr.response : xhr.responseText;
-      rememberChapterResponse(url, text);
-    } catch (e) {}
-  }
-
-  function isPotentialChapterUrl(url) {
-    return /\/(?:web\/)?book\/chapterContent\b|\/book\/chapterInfos\b|chapterContent/i.test(url || '');
-  }
-
-  function rememberChapterResponse(url, text) {
-    if (typeof text !== 'string' || !text.trim()) return;
-    if (text.length > maxResponseTextLength) return;
-
-    const expectedChapterUid = getUrlParam(url, 'chapterUid') || getUrlParam(url, 'c');
-    const parsed = parseJsonMaybe(text);
-    const payload = parsed || text;
-    const candidates = collectContentCandidates(payload, {
-      expectedChapterUid,
-      source: 'network:' + url,
-      forceBase64: /\bbase64=1\b/.test(url)
-    });
-
-    candidates.forEach(function (candidate) {
-      chapterResponseCache.push({
-        ...candidate,
-        url,
-        chapterUid: candidate.chapterUid || expectedChapterUid || ''
-      });
-    });
-
-    while (chapterResponseCache.length > maxCacheItems) {
-      chapterResponseCache.shift();
-    }
-  }
-
-  async function getFullChapterContent(request) {
-    const expectedChapterUid = String(request?.chapterUid || '').trim();
-    const readerContent = getChapterContentFromReader(expectedChapterUid);
-    if (readerContent) return okChapterContent(readerContent);
-
-    const cachedContent = getChapterContentFromCache(expectedChapterUid);
-    if (cachedContent) return okChapterContent(cachedContent);
-
-    const fetchedContent = await fetchChapterContent(request);
-    if (fetchedContent) return okChapterContent(fetchedContent);
-
-    return {
-      success: false,
-      error: '未在页面阅读器实例或章节接口响应中找到完整章节内容。'
-    };
-  }
-
-  function okChapterContent(content) {
-    return {
-      success: true,
-      content
-    };
-  }
-
-  function getChapterContentFromReader(expectedChapterUid) {
-    const vm = findReaderVm();
-    if (!vm) return null;
-
-    const currentChapter = vm.currentChapter || {};
-    const chapterUid = String(currentChapter.chapterUid || vm.chapterUid || '').trim();
-    if (expectedChapterUid && chapterUid && expectedChapterUid !== chapterUid) return null;
-
-    const title = currentChapter.title || getChapterTitle(expectedChapterUid) || '';
-    const candidates = [];
-    const fields = [
-      ['chapterContentForEPub', vm.chapterContentForEPub],
-      ['chapterContent', vm.chapterContent],
-      ['currentChapter.content', currentChapter.content],
-      ['currentChapter.html', currentChapter.html],
-      ['currentChapter.body', currentChapter.body],
-      ['currentChapter.text', currentChapter.text]
-    ];
-
-    fields.forEach(function (entry) {
-      const found = collectContentCandidates(entry[1], {
-        expectedChapterUid,
-        fallbackTitle: title,
-        source: 'reader.' + entry[0]
-      });
-      candidates.push(...found);
-    });
-
-    return chooseBestCandidate(candidates, expectedChapterUid);
-  }
-
-  function findReaderVm() {
-    const directCandidates = [
-      window.book,
-      window.reader,
-      window.__wereadReader,
-      window.__WEREAD_READER__
-    ];
-
-    for (let i = 0; i < directCandidates.length; i += 1) {
-      const candidate = unwrapVueCandidate(directCandidates[i]);
-      if (isReaderVm(candidate)) return candidate;
-    }
-
-    const selectors = [
-      'div.readerContent.routerView',
-      '.readerContent.routerView',
-      '.readerContent',
-      '[class*="readerContent"]',
-      '[class*="Reader"]'
-    ];
-
-    for (let i = 0; i < selectors.length; i += 1) {
-      const elements = document.querySelectorAll(selectors[i]);
-      for (let j = 0; j < elements.length; j += 1) {
-        const candidate = findVueCandidate(elements[j]);
-        if (candidate) return candidate;
-      }
-    }
-
-    const allElements = document.querySelectorAll('*');
-    for (let i = 0; i < allElements.length && i < 2000; i += 1) {
-      if (!allElements[i].__vue__ && !allElements[i].__vueParentComponent) continue;
-
-      const candidate = findVueCandidate(allElements[i]);
-      if (candidate) return candidate;
-    }
-
-    return null;
-  }
-
-  function findVueCandidate(element) {
-    const queue = [
-      element?.__vue__,
-      element?.__vueParentComponent
-    ];
-    const seen = new WeakSet();
-    let cursor = 0;
-
-    while (cursor < queue.length && cursor < 200) {
-      const raw = queue[cursor];
-      cursor += 1;
-      if (!raw || typeof raw !== 'object') continue;
-      if (seen.has(raw)) continue;
-      seen.add(raw);
-
-      const candidate = unwrapVueCandidate(raw);
-      if (isReaderVm(candidate)) return candidate;
-
-      pushObject(queue, raw.proxy);
-      pushObject(queue, raw.ctx);
-      pushObject(queue, raw.parent);
-      pushObject(queue, raw.root);
-      pushObject(queue, raw.subTree);
-      pushObject(queue, raw.component);
-
-      if (Array.isArray(raw.children)) {
-        raw.children.forEach(function (child) {
-          pushObject(queue, child);
-        });
-      }
-    }
-
-    return null;
-  }
-
-  function unwrapVueCandidate(raw) {
-    if (!raw || typeof raw !== 'object') return null;
-    return raw.proxy || raw.ctx || raw;
-  }
-
-  function pushObject(queue, value) {
-    if (value && typeof value === 'object') queue.push(value);
-  }
-
-  function isReaderVm(candidate) {
-    if (!candidate || typeof candidate !== 'object') return false;
-
-    return Boolean(
-      candidate.chapterContentForEPub
-      || candidate.chapterContent
-      || candidate.currentChapter
-      || candidate.chapterInfos
-      || candidate.bookInfo
-      || candidate.handleNextChapter
-      || candidate.changeChapter
-    );
-  }
-
-  function getChapterContentFromCache(expectedChapterUid) {
-    for (let i = chapterResponseCache.length - 1; i >= 0; i -= 1) {
-      const candidate = chapterResponseCache[i];
-      if (!expectedChapterUid || !candidate.chapterUid || String(candidate.chapterUid) === expectedChapterUid) {
-        return candidate;
-      }
-    }
-
-    return null;
-  }
-
-  async function fetchChapterContent(request) {
-    const bookId = String(request?.bookId || '').trim();
-    const chapterUid = String(request?.chapterUid || '').trim();
-    if (!bookId || !chapterUid || typeof originalFetch !== 'function') return null;
-
-    const urls = [
-      `/web/book/chapterContent?bookId=${encodeURIComponent(bookId)}&chapterUid=${encodeURIComponent(chapterUid)}&base64=1`,
-      `/web/book/chapterContent?bookId=${encodeURIComponent(bookId)}&chapterUid=${encodeURIComponent(chapterUid)}`,
-      `https://i.weread.qq.com/book/chapterContent?bookId=${encodeURIComponent(bookId)}&chapterUid=${encodeURIComponent(chapterUid)}`
-    ];
-
-    for (let i = 0; i < urls.length; i += 1) {
-      try {
-        const response = await originalFetch(urls[i], {
-          credentials: 'include',
-          headers: {
-            Accept: 'application/json, text/plain, */*'
-          }
-        });
-        if (!response || !response.ok) continue;
-
-        const text = await response.text();
-        rememberChapterResponse(urls[i], text);
-        const candidate = getChapterContentFromCache(chapterUid);
-        if (candidate) return candidate;
-      } catch (e) {}
-    }
-
-    return null;
-  }
-
-  function collectContentCandidates(value, options) {
-    const candidates = [];
-    const seen = new WeakSet();
-
-    collectFromValue(value, {
-      ...options,
-      path: options?.source || 'unknown',
-      depth: 0,
-      seen,
-      candidates
-    });
-
-    return candidates
-      .filter(function (candidate) {
-        return getCandidateLength(candidate) >= 20;
-      })
-      .sort(function (a, b) {
-        return scoreCandidate(b) - scoreCandidate(a);
-      });
-  }
-
-  function collectFromValue(value, context) {
-    if (value == null || context.depth > 6) return;
-
-    if (typeof value === 'string') {
-      addStringCandidate(value, context);
-      return;
-    }
-
-    if (Array.isArray(value)) {
-      addArrayCandidate(value, context);
-      value.forEach(function (item, index) {
-        collectFromValue(item, {
-          ...context,
-          path: context.path + '[' + index + ']',
-          depth: context.depth + 1
-        });
-      });
-      return;
-    }
-
-    if (typeof value !== 'object') return;
-    if (context.seen.has(value)) return;
-    context.seen.add(value);
-
-    const chapterUid = getObjectChapterUid(value) || context.expectedChapterUid || '';
-    if (context.expectedChapterUid && chapterUid && String(chapterUid) !== String(context.expectedChapterUid)) {
-      return;
-    }
-
-    const title = value.title || value.chapterTitle || context.fallbackTitle || '';
-    const keys = [
-      'chapterContentForEPub',
-      'contentForEPub',
-      'chapterContent',
-      'content',
-      'html',
-      'body',
-      'text',
-      'paragraphs',
-      'contents'
-    ];
-
-    keys.forEach(function (key) {
-      if (Object.prototype.hasOwnProperty.call(value, key)) {
-        collectFromValue(value[key], {
-          ...context,
-          path: context.path + '.' + key,
-          fallbackTitle: title,
-          chapterUid,
-          depth: context.depth + 1
-        });
-      }
-    });
-
-    Object.keys(value).forEach(function (key) {
-      if (keys.includes(key)) return;
-      if (!shouldWalkKey(key)) return;
-
-      collectFromValue(value[key], {
-        ...context,
-        path: context.path + '.' + key,
-        fallbackTitle: title,
-        chapterUid,
-        depth: context.depth + 1
-      });
-    });
-  }
-
-  function addStringCandidate(value, context) {
-    const decoded = decodeMaybeBase64(value, context.forceBase64);
-    const text = String(decoded || '').trim();
-    if (!text) return;
-
-    const candidate = buildCandidate(text, context);
-    context.candidates.push(candidate);
-  }
-
-  function addArrayCandidate(value, context) {
-    if (value.length === 0) return;
-
-    if (value.every(function (item) { return typeof item === 'string'; })) {
-      const raw = value.join(looksLikeHtml(value.join('')) ? '' : '\n');
-      addStringCandidate(raw, context);
-      return;
-    }
-
-    const stringParts = value.map(function (item) {
-      if (typeof item === 'string') return item;
-      if (item && typeof item === 'object') {
-        return item.html || item.content || item.text || item.body || '';
-      }
-      return '';
-    }).filter(Boolean);
-
-    if (stringParts.length > 0) {
-      const raw = stringParts.join(looksLikeHtml(stringParts.join('')) ? '' : '\n');
-      addStringCandidate(raw, context);
-    }
-  }
-
-  function buildCandidate(value, context) {
-    const isHtml = looksLikeHtml(value);
-
-    return {
-      html: isHtml ? value : '',
-      text: isHtml ? '' : value,
-      title: context.fallbackTitle || '',
-      chapterUid: context.chapterUid || context.expectedChapterUid || '',
-      source: context.path || 'unknown'
-    };
-  }
-
-  function shouldWalkKey(key) {
-    return [
-      'data',
-      'payload',
-      'chapter',
-      'currentChapter',
-      'reader',
-      'book',
-      'updated',
-      'items',
-      'list',
-      'chapters'
-    ].includes(key);
-  }
-
-  function getObjectChapterUid(value) {
-    return value.chapterUid
-      || value.chapterUID
-      || value.chapterId
-      || value.chapter?.chapterUid
-      || value.currentChapter?.chapterUid
-      || '';
-  }
-
-  function chooseBestCandidate(candidates, expectedChapterUid) {
-    const matched = candidates.filter(function (candidate) {
-      return !expectedChapterUid || !candidate.chapterUid || String(candidate.chapterUid) === String(expectedChapterUid);
-    });
-
-    if (matched.length === 0) return null;
-    return matched.sort(function (a, b) {
-      return scoreCandidate(b) - scoreCandidate(a);
-    })[0];
-  }
-
-  function scoreCandidate(candidate) {
-    const length = getCandidateLength(candidate);
-    const sourceBonus = /chapterContentForEPub|chapterContent/i.test(candidate.source || '') ? 100000 : 0;
-    const htmlBonus = candidate.html ? 1000 : 0;
-    return length + sourceBonus + htmlBonus;
-  }
-
-  function getCandidateLength(candidate) {
-    return (candidate.html || candidate.text || '').replace(/\s/g, '').length;
-  }
-
-  function parseJsonMaybe(text) {
-    try {
-      return JSON.parse(text);
-    } catch (e) {
-      return null;
-    }
-  }
-
-  function decodeMaybeBase64(value, forceBase64) {
-    const text = String(value || '').trim();
-    if (!forceBase64 && !looksLikeBase64(text)) return text;
-
-    try {
-      const normalized = text.replace(/-/g, '+').replace(/_/g, '/');
-      const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
-      const binary = atob(padded);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i += 1) {
-        bytes[i] = binary.charCodeAt(i);
-      }
-      const decoded = new TextDecoder('utf-8').decode(bytes).trim();
-      return decoded || text;
-    } catch (e) {
-      return text;
-    }
-  }
-
-  function looksLikeBase64(text) {
-    if (text.length < 80 || text.length % 4 === 1) return false;
-    if (!/^[A-Za-z0-9+/_=-]+$/.test(text)) return false;
-    return !/[<>{}\u4e00-\u9fff]/.test(text);
-  }
-
-  function looksLikeHtml(text) {
-    return /<\/?[a-z][\s\S]*>/i.test(text || '');
-  }
-
-  function getUrlParam(url, key) {
-    try {
-      return new URL(url, window.location.origin).searchParams.get(key) || '';
-    } catch (e) {
-      return '';
-    }
-  }
-
-  function getChapterTitle(chapterUid) {
-    const state = collectPageState();
-    const chapterInfos = state?.chapterInfos || [];
-    const matched = chapterInfos.find(function (chapter) {
-      return String(chapter.chapterUid) === String(chapterUid);
-    });
-
-    return matched?.title || state?.currentChapter?.title || '';
-  }
+  // ── 消息桥接 ──
 
   window.addEventListener('message', function (event) {
     if (event.source !== window || !event.data || typeof event.data !== 'object') return;
@@ -722,18 +210,7 @@
         count: result.count
       }, '*');
     }
-
-    if (event.data.type === 'WEREAD_REQ_CHAPTER_CONTENT') {
-      getFullChapterContent(event.data).then(function (result) {
-        window.postMessage({
-          type: 'WEREAD_CHAPTER_CONTENT',
-          requestId: event.data.requestId,
-          ...result
-        }, '*');
-      });
-    }
   });
 
   installCanvasHook();
-  installNetworkHook();
 })();

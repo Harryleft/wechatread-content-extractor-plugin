@@ -254,10 +254,6 @@
 
   // ── 监听来自 popup 的消息 ──
   chrome.runtime?.onMessage?.addListener((msg, sender, sendResponse) => {
-    if (msg.type === 'EXTRACT_CHAPTER') {
-      EXTRACTOR.extractVisible().then(sendResponse);
-      return true; // 异步响应
-    }
     if (msg.type === 'EXTRACT_VISIBLE') {
       EXTRACTOR.extractVisible().then(sendResponse);
       return true;

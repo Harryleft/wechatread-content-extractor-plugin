@@ -1,7 +1,8 @@
 /**
  * WereadExtract - 内容提取核心模块
  *
- * 整章走页面阅读器/章节接口，可见内容走选区或 Canvas 已绘制文本
+ * 微信读书通过 Canvas fillText() 渲染正文，DOM 中不存在可读文本。
+ * 通过 postMessage 桥接与 MAIN world 的 canvas-hook.js 通信，获取 fillText 截获的文本。
  */
 
 /* eslint-disable no-undef */
@@ -84,55 +85,11 @@ class WereadExtractor {
 
   // ── 提取入口 ──
 
-  async extractChapter() {
-    const meta = await this.getBookMeta();
-    const chapterResult = await this._extractFullChapterContent(meta);
-    const content = chapterResult.rawContent || '';
-    const method = chapterResult.source || 'full-chapter';
-
-    if (!content) {
-      return {
-        success: false,
-        error: chapterResult.error || '无法获取完整章节内容。请刷新阅读页后重试。',
-        meta
-      };
-    }
-
-    if (chapterResult.title && !meta.chapterTitle) meta.chapterTitle = chapterResult.title;
-    if (chapterResult.chapterUid && !meta.chapterUid) meta.chapterUid = chapterResult.chapterUid;
-
-    const formatted = this._toMarkdown(content, meta);
-    return {
-      success: true,
-      content: formatted,
-      copyContent: this._buildReadingPrompt(formatted),
-      rawContent: content,
-      meta,
-      format: 'markdown',
-      method,
-      charCount: formatted.length,
-      wordCount: content.replace(/\s/g, '').length
-    };
-  }
-
   async extractVisible() {
     const meta = await this.getBookMeta();
+    const content = await this._extractFromCanvas();
 
-    // 优先用选区
-    const selection = this._extractSelection();
-    let content = selection || '';
-    let method = selection ? 'selection' : '';
-
-    // 其次用 Canvas Hook
-    if (!content) {
-      const canvasText = await this._extractFromCanvas();
-      if (canvasText && canvasText.length > 20) {
-        content = canvasText;
-        method = 'canvas-hook';
-      }
-    }
-
-    if (!content) {
+    if (!content || content.length <= 20) {
       return { success: false, error: '当前页面无可提取内容。', meta };
     }
 
@@ -144,13 +101,12 @@ class WereadExtractor {
       rawContent: content,
       meta,
       format: 'markdown',
-      method,
       charCount: formatted.length,
       wordCount: content.replace(/\s/g, '').length
     };
   }
 
-  // ── 提取策略 ──
+  // ── Canvas Hook 文本提取 ──
 
   _requestPageBridge(requestType, responseType, timeout = 2000, payload = {}) {
     return new Promise((resolve) => {
@@ -178,44 +134,11 @@ class WereadExtractor {
     });
   }
 
-  async _extractFullChapterContent(meta) {
-    try {
-      const result = await this._requestPageBridge(
-        'WEREAD_REQ_CHAPTER_CONTENT',
-        'WEREAD_CHAPTER_CONTENT',
-        6000,
-        {
-          bookId: meta.bookId,
-          chapterUid: meta.chapterUid
-        }
-      );
-
-      if (!result?.success || !result.content) {
-        return {
-          rawContent: '',
-          error: result?.error || '页面没有返回完整章节内容。'
-        };
-      }
-
-      const normalized = this._normalizeChapterPayload(result.content);
-      return {
-        ...normalized,
-        error: normalized.rawContent ? '' : '完整章节响应为空。'
-      };
-    } catch (e) {
-      console.warn('[WereadExtract] 完整章节提取失败:', e);
-      return {
-        rawContent: '',
-        error: '完整章节提取失败: ' + e.message
-      };
-    }
-  }
-
   async _extractFromCanvas() {
     try {
       const result = await this._requestPageBridge('WEREAD_REQ_CANVAS', 'WEREAD_CANVAS_DATA');
       if (result && result.text && result.text.trim().length > 0) {
-        return result.text.trim();
+        return this._normalizePlainText(result.text.trim());
       }
     } catch (e) {
       console.warn('[WereadExtract] Canvas hook 提取失败:', e);
@@ -223,52 +146,9 @@ class WereadExtractor {
     return '';
   }
 
-  _extractSelection() {
-    const sel = window.getSelection();
-    if (!sel || sel.isCollapsed || !sel.toString().trim()) return '';
-    return sel.toString().trim();
-  }
-
-  _normalizeChapterPayload(payload) {
-    if (typeof payload === 'string') {
-      return {
-        rawContent: this._normalizePlainText(payload),
-        source: 'full-chapter'
-      };
-    }
-
-    const html = payload?.html || '';
-    const text = payload?.text || '';
-    const rawContent = text
-      ? this._normalizePlainText(text)
-      : this._htmlToText(html);
-
-    return {
-      rawContent,
-      title: payload?.title || '',
-      chapterUid: payload?.chapterUid || '',
-      source: payload?.source || 'full-chapter'
-    };
-  }
-
-  _htmlToText(html) {
-    if (!html) return '';
-
-    const container = document.createElement('div');
-    container.innerHTML = html;
-    container.querySelectorAll('script, style, noscript').forEach((node) => node.remove());
-    container.querySelectorAll('br').forEach((node) => node.replaceWith('\n'));
-    container.querySelectorAll('p, div, section, article, li, blockquote, pre, h1, h2, h3, h4, h5, h6')
-      .forEach((node) => {
-        node.appendChild(document.createTextNode('\n\n'));
-      });
-
-    return this._normalizePlainText(container.textContent || '');
-  }
-
   _normalizePlainText(text) {
     return String(text || '')
-      .replace(/\u00a0/g, ' ')
+      .replace(/ /g, ' ')
       .replace(/\r/g, '')
       .replace(/[ \t]+\n/g, '\n')
       .replace(/\n[ \t]+/g, '\n')
@@ -327,7 +207,7 @@ class WereadExtractor {
       '## 5. 向外联想',
       '请基于本章内容，联想到其他领域、书籍、历史事件、现实案例、心理机制、产品设计或人生经验。',
       '要求：',
-      '- 每条联想都说明“为什么能联想到这里”',
+      '- 每条联想都说明"为什么能联想到这里"',
       '- 明确标注哪些是原文依据，哪些是你的推测或类比',
       '- 不要为了联想而牵强附会',
       '',
@@ -339,7 +219,7 @@ class WereadExtractor {
       '',
       '约束：',
       '- 不要编造原文没有的信息。',
-      '- 如果某个判断来自你的推测，请明确写出“这是推测”。',
+      '- 如果某个判断来自你的推测，请明确写出"这是推测"。',
       '- 保持清晰、具体、有启发，不要写空泛鸡汤。',
       '',
       '下面是章节内容：',
