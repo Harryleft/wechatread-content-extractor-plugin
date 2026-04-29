@@ -12,7 +12,6 @@
   window.__wereadCanvasHookInstalled = true;
 
   let captured = [];
-  let lastUrl = location.href;
   let currentFontSize = 0;
   const proxyMap = new WeakMap();
   const chapterResponseCache = [];
@@ -702,29 +701,6 @@
     return matched?.title || state?.currentChapter?.title || '';
   }
 
-  function installNavigationHook() {
-    var origPushState = history.pushState;
-    history.pushState = function () {
-      captured = [];
-      lastUrl = location.href;
-      return origPushState.apply(this, arguments);
-    };
-    var origReplaceState = history.replaceState;
-    history.replaceState = function () {
-      captured = [];
-      lastUrl = location.href;
-      return origReplaceState.apply(this, arguments);
-    };
-    window.addEventListener('popstate', function () {
-      captured = [];
-      lastUrl = location.href;
-    });
-    window.addEventListener('hashchange', function () {
-      captured = [];
-      lastUrl = location.href;
-    });
-  }
-
   window.addEventListener('message', function (event) {
     if (event.source !== window || !event.data || typeof event.data !== 'object') return;
 
@@ -737,10 +713,6 @@
     }
 
     if (event.data.type === 'WEREAD_REQ_CANVAS') {
-      if (location.href !== lastUrl) {
-        captured = [];
-        lastUrl = location.href;
-      }
       const result = buildCanvasText();
       window.postMessage({
         type: 'WEREAD_CANVAS_DATA',
@@ -763,6 +735,5 @@
   });
 
   installCanvasHook();
-  installNavigationHook();
   installNetworkHook();
 })();
