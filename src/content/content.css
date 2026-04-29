@@ -1,4 +1,4 @@
-/* WereadExtract - 浮动按钮 + 面板样式 */
+/* WereadExtract - 浮动按钮 + 面板样式 (Light) */
 
 /* ── 浮动按钮 ── */
 #weread-extract-fab {
@@ -8,22 +8,22 @@
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: #4f46e5;
+  background: #2563eb;
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.4);
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.25);
   z-index: 99999;
-  transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out, background 0.2s ease-out;
   user-select: none;
 }
 
 #weread-extract-fab:hover {
   transform: scale(1.1);
-  box-shadow: 0 6px 20px rgba(79, 70, 229, 0.5);
-  background: #4338ca;
+  box-shadow: 0 6px 24px rgba(37, 99, 235, 0.35);
+  background: #1d4ed8;
 }
 
 #weread-extract-fab:active {
@@ -37,31 +37,31 @@
   bottom: 140px;
   width: 400px;
   max-height: 70vh;
-  background: #1e1e2e;
+  background: #ffffff;
   border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.06);
   z-index: 99998;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   font-size: 14px;
-  color: #cdd6f4;
+  color: #1a1a1a;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .we-panel-visible {
   opacity: 1;
   transform: translateY(0) scale(1);
   pointer-events: auto;
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition: opacity 0.2s ease-out, transform 0.2s ease-out;
 }
 
 .we-panel-hidden {
   opacity: 0;
   transform: translateY(10px) scale(0.95);
   pointer-events: none;
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition: opacity 0.15s ease-out, transform 0.15s ease-out;
 }
 
 /* ── 面板头部 ── */
@@ -70,30 +70,30 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  background: #181825;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: #f8f9fa;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .we-title {
   font-weight: 600;
   font-size: 14px;
-  color: #cdd6f4;
-  letter-spacing: 0.3px;
+  color: #1a1a1a;
+  letter-spacing: 0.2px;
 }
 
 .we-close {
   background: none;
   border: none;
-  color: #6c7086;
+  color: #9ca3af;
   font-size: 20px;
   cursor: pointer;
   padding: 0 4px;
   line-height: 1;
-  transition: color 0.15s;
+  transition: color 0.15s ease-out;
 }
 
 .we-close:hover {
-  color: #f38ba8;
+  color: #dc2626;
 }
 
 /* ── 面板主体 ── */
@@ -121,53 +121,55 @@
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
-  transition: all 0.15s;
+  font-family: inherit;
+  transition: all 0.15s ease-out;
   flex: 1;
 }
 
 .we-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 .we-btn-primary {
-  background: #4f46e5;
+  background: #2563eb;
   color: #fff;
 }
 
 .we-btn-primary:hover:not(:disabled) {
-  background: #4338ca;
+  background: #1d4ed8;
 }
 
 .we-btn-secondary {
-  background: #313244;
-  color: #cdd6f4;
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .we-btn-secondary:hover:not(:disabled) {
-  background: #45475a;
+  background: #e5e7eb;
 }
 
 .we-btn-copy {
-  background: #4f46e5;
+  background: #2563eb;
   color: #fff;
   padding: 6px 16px;
   font-size: 12px;
 }
 
 .we-btn-copy:hover:not(:disabled) {
-  background: #4338ca;
+  background: #1d4ed8;
 }
 
 .we-btn-copied {
-  background: #a6e3a1 !important;
-  color: #1e1e2e !important;
+  background: #16a34a !important;
+  color: #fff !important;
 }
 
 /* ── 元信息 ── */
 .we-meta {
   font-size: 12px;
-  color: #a6adc8;
+  color: #6b7280;
   margin-bottom: 8px;
   line-height: 1.6;
 }
@@ -175,9 +177,9 @@
 /* ── 选区提示 ── */
 .we-selection-hint {
   font-size: 11px;
-  color: #a6e3a1;
-  background: rgba(166, 227, 161, 0.08);
-  border: 1px solid rgba(166, 227, 161, 0.15);
+  color: #16a34a;
+  background: rgba(22, 163, 74, 0.06);
+  border: 1px solid rgba(22, 163, 74, 0.12);
   border-radius: 6px;
   padding: 6px 10px;
   margin-bottom: 8px;
@@ -185,18 +187,18 @@
 
 /* ── 预览区域 ── */
 .we-preview {
-  background: #181825;
+  background: #f8f9fa;
   border-radius: 8px;
   padding: 12px;
   min-height: 120px;
   max-height: 300px;
   overflow-y: auto;
   margin-bottom: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .we-preview-placeholder {
-  color: #585b70;
+  color: #9ca3af;
   text-align: center;
   padding: 40px 0;
   font-size: 13px;
@@ -207,13 +209,13 @@
   word-break: break-word;
   font-size: 12px;
   line-height: 1.7;
-  color: #bac2de;
+  color: #374151;
   margin: 0;
-  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
 }
 
 .we-error {
-  color: #f38ba8;
+  color: #dc2626;
   text-align: center;
   padding: 20px;
   font-size: 13px;
@@ -225,12 +227,12 @@
   align-items: center;
   justify-content: space-between;
   padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .we-stats {
   font-size: 11px;
-  color: #585b70;
+  color: #9ca3af;
 }
 
 .we-footer-actions {
@@ -244,17 +246,18 @@
   top: 20px;
   left: 50%;
   transform: translateX(-50%) translateY(-20px);
-  background: #a6e3a1;
-  color: #1e1e2e;
+  background: #16a34a;
+  color: #fff;
   padding: 8px 24px;
   border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
   z-index: 999999;
   opacity: 0;
-  transition: opacity 0.2s, transform 0.2s;
+  transition: opacity 0.2s ease-out, transform 0.2s ease-out;
   pointer-events: none;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  box-shadow: 0 2px 12px rgba(22, 163, 74, 0.25);
 }
 
 .we-toast-show {
@@ -272,7 +275,7 @@
 }
 
 .we-preview::-webkit-scrollbar-thumb {
-  background: #45475a;
+  background: #d1d5db;
   border-radius: 4px;
 }
 
@@ -285,6 +288,6 @@
 }
 
 .we-body::-webkit-scrollbar-thumb {
-  background: #45475a;
+  background: #d1d5db;
   border-radius: 4px;
 }

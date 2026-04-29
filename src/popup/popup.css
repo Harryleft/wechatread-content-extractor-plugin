@@ -1,4 +1,4 @@
-/* WereadExtract - Popup 样式 */
+/* WereadExtract - Popup 样式 (Light) */
 
 * {
   margin: 0;
@@ -8,9 +8,9 @@
 
 body {
   width: 360px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  background: #1e1e2e;
-  color: #cdd6f4;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  background: #ffffff;
+  color: #1a1a1a;
 }
 
 .popup {
@@ -31,17 +31,17 @@ body {
   gap: 8px;
   font-size: 16px;
   font-weight: 600;
-  color: #cdd6f4;
+  color: #1a1a1a;
 }
 
 .popup-title svg {
-  color: #818cf8;
+  color: #2563eb;
 }
 
 .popup-version {
   font-size: 11px;
-  color: #585b70;
-  background: #181825;
+  color: #9ca3af;
+  background: #f3f4f6;
   padding: 2px 8px;
   border-radius: 4px;
 }
@@ -65,38 +65,38 @@ body {
 }
 
 .status-active {
-  background: #1e1e2e;
-  border: 1px solid rgba(166, 227, 161, 0.2);
+  background: rgba(22, 163, 74, 0.06);
+  border: 1px solid rgba(22, 163, 74, 0.12);
 }
 
 .status-active .status-dot {
-  background: #a6e3a1;
+  background: #16a34a;
 }
 
 .status-active .status-text {
-  color: #a6e3a1;
+  color: #16a34a;
 }
 
 .status-inactive {
-  background: #1e1e2e;
-  border: 1px solid rgba(243, 139, 168, 0.2);
+  background: rgba(220, 38, 38, 0.05);
+  border: 1px solid rgba(220, 38, 38, 0.1);
 }
 
 .status-inactive .status-dot {
-  background: #f38ba8;
+  background: #dc2626;
 }
 
 .status-inactive .status-text {
-  color: #f38ba8;
+  color: #dc2626;
 }
 
 .status-unknown {
-  background: #1e1e2e;
-  border: 1px solid rgba(69, 71, 90, 0.3);
+  background: #f3f4f6;
+  border: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .status-unknown .status-dot {
-  background: #585b70;
+  background: #9ca3af;
 }
 
 /* ── 操作按钮 ── */
@@ -118,7 +118,8 @@ body {
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
-  transition: all 0.15s;
+  font-family: inherit;
+  transition: all 0.15s ease-out;
   width: 100%;
 }
 
@@ -128,46 +129,47 @@ body {
 }
 
 .btn-primary {
-  background: #4f46e5;
+  background: #2563eb;
   color: #fff;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #4338ca;
+  background: #1d4ed8;
 }
 
 .btn-secondary {
-  background: #313244;
-  color: #cdd6f4;
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: #45475a;
+  background: #e5e7eb;
 }
 
 .btn-copy {
-  background: #4f46e5;
+  background: #2563eb;
   color: #fff;
   font-size: 13px;
 }
 
 .btn-copy:hover:not(:disabled) {
-  background: #4338ca;
+  background: #1d4ed8;
 }
 
 .btn-copy.copied {
-  background: #a6e3a1;
-  color: #1e1e2e;
+  background: #16a34a;
+  color: #fff;
 }
 
 /* ── 元信息 ── */
 .meta-section {
-  background: #181825;
+  background: #f8f9fa;
   border-radius: 8px;
   padding: 8px 12px;
   margin-bottom: 12px;
   font-size: 12px;
-  color: #a6adc8;
+  color: #6b7280;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -183,38 +185,38 @@ body {
   align-items: center;
   justify-content: space-between;
   font-size: 12px;
-  color: #a6adc8;
+  color: #6b7280;
   margin-bottom: 6px;
 }
 
 .char-count {
-  color: #585b70;
+  color: #9ca3af;
 }
 
 .preview-content {
-  background: #181825;
+  background: #f8f9fa;
   border-radius: 8px;
   padding: 10px;
   max-height: 200px;
   overflow-y: auto;
   font-size: 12px;
   line-height: 1.6;
-  color: #bac2de;
+  color: #374151;
   white-space: pre-wrap;
   word-break: break-word;
-  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+  border: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 /* ── 错误信息 ── */
 .error-section {
-  background: rgba(243, 139, 168, 0.1);
-  border: 1px solid rgba(243, 139, 168, 0.2);
+  background: rgba(220, 38, 38, 0.05);
+  border: 1px solid rgba(220, 38, 38, 0.12);
   border-radius: 8px;
   padding: 10px 12px;
   margin-bottom: 12px;
   font-size: 13px;
-  color: #f38ba8;
+  color: #dc2626;
 }
 
 /* ── 底部 ── */
@@ -225,9 +227,9 @@ body {
 .popup-footer {
   text-align: center;
   font-size: 11px;
-  color: #585b70;
+  color: #9ca3af;
   padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 /* ── 滚动条 ── */
@@ -240,6 +242,6 @@ body {
 }
 
 .preview-content::-webkit-scrollbar-thumb {
-  background: #45475a;
+  background: #d1d5db;
   border-radius: 4px;
 }
