@@ -12,6 +12,7 @@ class WereadExtractor {
     this._state = null;
     this._statePromise = null;
     this._lastStateUrl = null;
+    this._extracting = false;
   }
 
   // ── 页面状态 ──
@@ -86,38 +87,48 @@ class WereadExtractor {
   // ── 提取入口 ──
 
   async extractVisible() {
-    const meta = await this.getBookMeta();
-    const content = await this._extractFromCanvas();
-
-    if (!content || content.length <= 20) {
-      return { success: false, error: '当前页面无可提取内容。', meta };
+    if (this._extracting) {
+      return { success: false, error: '提取进行中，请稍后重试。', meta: null };
     }
+    this._extracting = true;
+    try {
+      const meta = await this.getBookMeta();
+      const content = await this._extractFromCanvas();
 
-    const formatted = this._toMarkdown(content, meta);
-    return {
-      success: true,
-      content: formatted,
-      copyContent: this._buildReadingPrompt(formatted),
-      rawContent: content,
-      meta,
-      format: 'markdown',
-      charCount: formatted.length,
-      wordCount: content.replace(/\s/g, '').length
-    };
+      if (!content || content.length <= 20) {
+        return { success: false, error: '当前页面无可提取内容。', meta };
+      }
+
+      const formatted = this._toMarkdown(content, meta);
+      return {
+        success: true,
+        content: formatted,
+        copyContent: this._buildReadingPrompt(formatted),
+        rawContent: content,
+        meta,
+        format: 'markdown',
+        charCount: formatted.length,
+        wordCount: content.replace(/\s/g, '').length
+      };
+    } finally {
+      this._extracting = false;
+    }
   }
 
   // ── Canvas Hook 文本提取 ──
 
-  _requestPageBridge(requestType, responseType, timeout = 2000, payload = {}) {
+  _requestPageBridge(requestType, responseType, timeout = 5000, payload = {}) {
     return new Promise((resolve) => {
       const requestId = `weread-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       let settled = false;
+      let graceTimer = null;
 
       const finish = (payload) => {
         if (settled) return;
         settled = true;
         window.removeEventListener('message', handler);
         clearTimeout(timer);
+        clearTimeout(graceTimer);
         resolve(payload);
       };
 
@@ -128,7 +139,10 @@ class WereadExtractor {
         finish(data);
       };
 
-      const timer = setTimeout(() => finish(null), timeout);
+      const timer = setTimeout(() => {
+        // Grace period: keep listener alive for another 3s before giving up
+        graceTimer = setTimeout(() => finish(null), 3000);
+      }, timeout);
       window.addEventListener('message', handler);
       window.postMessage({ ...payload, type: requestType, requestId }, '*');
     });
@@ -231,7 +245,7 @@ class WereadExtractor {
       '--- 章节结束 ---'
     ].join('\n');
 
-    return [singlePrompt, singlePrompt].join('\n\n');
+    return singlePrompt;
   }
 }
 

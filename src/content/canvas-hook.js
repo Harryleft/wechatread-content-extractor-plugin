@@ -13,6 +13,7 @@
 
   let captured = [];
   let currentFontSize = 0;
+  let lastChapterUid = null;
   const proxyMap = new WeakMap();
   const originalGetContext = HTMLCanvasElement.prototype.getContext;
 
@@ -61,7 +62,21 @@
 
   // ── Canvas fillText 拦截 ──
 
+  function detectChapterChange() {
+    try {
+      let state = window.__INITIAL_STATE__;
+      let currentUid = (state?.reader?.chapterUid || state?.currentChapter?.chapterUid || '');
+      if (currentUid && lastChapterUid && String(currentUid) !== String(lastChapterUid)) {
+        captured = [];
+      }
+      if (currentUid) {
+        lastChapterUid = String(currentUid);
+      }
+    } catch (e) { /* ignore */ }
+  }
+
   function recordText(text, x, y) {
+    detectChapterChange();
     if (typeof text !== 'string') return;
     if (!text.trim()) return;
     if (text.startsWith('abcdefghijklmn')) return;
@@ -75,6 +90,7 @@
   }
 
   function buildCanvasText() {
+    detectChapterChange();
     const snapshot = captured.slice();
     captured = [];
     const sorted = snapshot.sort(function (a, b) {
@@ -153,8 +169,15 @@
           }
 
           if (prop === 'clearRect') {
-            return function () {
-              captured = [];
+            return function (x, y, width, height) {
+              // Only clear captured on substantial canvas clears, avoiding
+              // spurious resets from small-area redraws or unrelated canvases
+              var canvas = target.canvas;
+              var isSubstantial = !canvas
+                || (width >= canvas.width * 0.5 && height >= canvas.height * 0.5);
+              if (isSubstantial) {
+                captured = [];
+              }
               return value.apply(target, arguments);
             };
           }
