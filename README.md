@@ -6,7 +6,7 @@
   <img src="logo/logo.png" alt="Weread Extract Logo" width="200" />
 </p>
 
-> *「在文字变成像素之前，把它截下来」*
+> *「不光读完，还要读懂」*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Chrome Extension](https://img.shields.io/badge/Chrome%20Extension-Manifest%20V3-blue)](https://developer.chrome.com/docs/extensions/mv3/)
@@ -14,7 +14,7 @@
 
 <br>
 
-**一键提取微信读书内容为 Markdown，交给 AI 分析、提炼、写作。**
+**一键提取章节内容，交给 AI 理解**
 
 <br>
 
