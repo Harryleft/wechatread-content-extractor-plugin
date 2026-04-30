@@ -2,3 +2,6 @@ diss/
 tests/
 CLAUDE.md
 AGENTS.md
+release/
+skills-lock.json
+node_modules/
