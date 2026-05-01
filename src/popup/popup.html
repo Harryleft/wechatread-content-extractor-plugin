@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <div class="popup">
+  <div class="popup" id="popup-main">
     <header class="popup-header">
       <h1 class="popup-title">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -34,6 +34,14 @@
       </button>
     </div>
 
+    <div class="template-section" id="template-section">
+      <div class="template-label">🎭 视角模板</div>
+      <div class="select-wrapper">
+        <select id="template-select"></select>
+      </div>
+      <button class="btn-manage" id="btn-manage-templates">✏️ 管理模板</button>
+    </div>
+
     <div id="meta-section" class="meta-section" style="display:none;">
       <span id="meta-book"></span>
       <span id="meta-chapter"></span>
@@ -54,8 +62,43 @@
     <div id="error-section" class="error-section" style="display:none;"></div>
 
     <footer class="popup-footer">
-      <span>点击右下角按钮一键提取</span>
+      <span>FAB 一键提取 · 这里管理模板</span>
     </footer>
+  </div>
+
+  <!-- 管理模板面板 -->
+  <div class="popup" id="popup-manage" style="display:none;">
+    <header class="popup-header">
+      <button class="btn-back" id="btn-back-main">← 返回</button>
+      <span class="popup-header-title">🎭 管理模板</span>
+    </header>
+    <div class="template-list" id="template-list"></div>
+    <div class="manage-footer">
+      <button class="btn btn-secondary" id="btn-add-template">+ 新建视角模板</button>
+    </div>
+  </div>
+
+  <!-- 编辑/新建模板面板 -->
+  <div class="popup" id="popup-edit" style="display:none;">
+    <header class="popup-header">
+      <button class="btn-back" id="btn-back-manage">← 返回</button>
+      <span class="popup-header-title" id="edit-title">✏️ 新建模板</span>
+    </header>
+    <div class="edit-form">
+      <div class="form-group">
+        <label class="form-label">模板名称</label>
+        <input class="form-input" type="text" id="edit-name" placeholder="例如：🐵 孙悟空 — 修行与觉悟">
+      </div>
+      <div class="form-group">
+        <label class="form-label">提示词模板</label>
+        <textarea class="form-textarea" id="edit-template" placeholder="编写提示词，使用 {{content}} 作为章节内容占位符"></textarea>
+        <div class="form-hint">使用 {{content}} 作为提取内容占位符</div>
+      </div>
+    </div>
+    <div class="edit-footer">
+      <button class="btn btn-secondary" id="btn-edit-cancel">取消</button>
+      <button class="btn btn-primary" id="btn-edit-save">保存模板</button>
+    </div>
   </div>
 
   <script src="popup.js"></script>
