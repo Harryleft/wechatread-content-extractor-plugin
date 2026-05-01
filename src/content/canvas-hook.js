@@ -79,7 +79,7 @@
       if (currentUid) {
         lastChapterUid = String(currentUid);
       }
-    } catch (e) { /* ignore */ }
+    } catch (e) { /* 忽略 */ }
   }
 
   function recordText(text, x, y) {
@@ -259,7 +259,7 @@
       response.clone().text().then(function (text) {
         rememberChapterResponse(url, text);
       }).catch(function () {});
-    } catch (e) { /* ignore */ }
+    } catch (e) { /* 忽略 */ }
   }
 
   function inspectXhrResponse(xhr) {
@@ -270,7 +270,7 @@
     try {
       const text = typeof xhr.response === 'string' ? xhr.response : xhr.responseText;
       rememberChapterResponse(url, text);
-    } catch (e) { /* ignore */ }
+    } catch (e) { /* 忽略 */ }
   }
 
   function isPotentialChapterUrl(url) {
@@ -492,7 +492,7 @@
         rememberChapterResponse(urls[i], text);
         const candidate = getChapterContentFromCache(chapterUid);
         if (candidate) return candidate;
-      } catch (e) { /* ignore */ }
+      } catch (e) { /* 忽略 */ }
     }
 
     return null;
