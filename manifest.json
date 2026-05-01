@@ -28,7 +28,7 @@
     },
     {
       "matches": ["*://weread.qq.com/web/reader/*"],
-      "js": ["src/content/extractor.js", "src/content/content.js"],
+      "js": ["src/content/templates.js", "src/content/extractor.js", "src/content/content.js"],
       "css": ["src/content/content.css"],
       "run_at": "document_idle"
     }

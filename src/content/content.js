@@ -1,7 +1,7 @@
 /**
  * WereadExtract - Content Script 主入口
  *
- * 注入浮动按钮 + 处理消息通信 + 触发提取
+ * 注入浮动按钮 + 处理消息通信 + 触发提取 + 视角模板管理
  */
 
 /* eslint-disable no-undef */
@@ -27,6 +27,40 @@
   // ── 状态 ──
   let panelVisible = false;
   let lastResult = null;
+  let customTemplates = [];
+  let selectedTemplateId = 'builtin-default';
+
+  // ── 模板存储 ──
+
+  function loadTemplates() {
+    return new Promise((resolve) => {
+      chrome.storage?.local?.get(
+        ['wereadTemplates', 'wereadSelectedTemplate'],
+        (data) => {
+          customTemplates = data.wereadTemplates || [];
+          selectedTemplateId = data.wereadSelectedTemplate || 'builtin-default';
+          resolve();
+        }
+      );
+    }).catch(() => {});
+  }
+
+  function saveTemplates() {
+    return new Promise((resolve) => {
+      chrome.storage?.local?.set(
+        { wereadTemplates: customTemplates, wereadSelectedTemplate: selectedTemplateId },
+        resolve
+      );
+    }).catch(() => {});
+  }
+
+  function getAllTemplates() {
+    return [...BUILTIN_TEMPLATES, ...customTemplates];
+  }
+
+  function getTemplateById(id) {
+    return getAllTemplates().find((t) => t.id === id) || BUILTIN_TEMPLATES[0];
+  }
 
   // ── 创建浮动按钮 ──
   function createFAB() {
@@ -66,6 +100,12 @@
             提取可见内容
           </button>
         </div>
+        <div class="we-perspective-section">
+          <div class="we-perspective-label">&#127917; 视角模板</div>
+          <div class="we-select-wrapper">
+            <select id="we-template-select"></select>
+          </div>
+        </div>
         <div class="we-meta" id="we-meta"></div>
         <div class="we-preview" id="we-preview">
           <div class="we-preview-placeholder">点击上方按钮提取内容</div>
@@ -80,8 +120,37 @@
     `;
 
     document.body.appendChild(panel);
+    populateTemplateSelect();
     bindPanelEvents(panel);
     return panel;
+  }
+
+  // ── 填充模板下拉 ──
+  function populateTemplateSelect() {
+    const select = document.getElementById('we-template-select');
+    if (!select) return;
+    select.innerHTML = '';
+
+    const all = getAllTemplates();
+    all.forEach((t) => {
+      const opt = document.createElement('option');
+      opt.value = t.id;
+      opt.textContent = t.name;
+      if (t.id === selectedTemplateId) opt.selected = true;
+      select.appendChild(opt);
+    });
+
+    // 分隔线
+    const sep = document.createElement('option');
+    sep.disabled = true;
+    sep.textContent = '──────────────';
+    select.appendChild(sep);
+
+    // 管理入口
+    const mgmt = document.createElement('option');
+    mgmt.value = '__manage__';
+    mgmt.textContent = '✏️ 管理模板...';
+    select.appendChild(mgmt);
   }
 
   // ── 绑定面板事件 ──
@@ -111,6 +180,22 @@
       }
     });
 
+    // 模板选择
+    panel.querySelector('#we-template-select').addEventListener('change', async (e) => {
+      const val = e.target.value;
+      if (val === '__manage__') {
+        openManageModal();
+        e.target.value = selectedTemplateId;
+        return;
+      }
+      selectedTemplateId = val;
+      await saveTemplates();
+      // 如果已有结果，更新 copyContent
+      if (lastResult?.success) {
+        displayResult(lastResult);
+      }
+    });
+
     // 复制到剪贴板
     panel.querySelector('#we-copy').addEventListener('click', async () => {
       if (!lastResult?.content) return;
@@ -126,7 +211,6 @@
           copyBtn.classList.remove('we-btn-copied');
         }, 2000);
       } catch (e) {
-        // fallback
         fallbackCopy(copyContent);
         showToast('内容已复制到剪贴板');
       }
@@ -179,9 +263,179 @@
     if (copyBtn) copyBtn.disabled = true;
   }
 
+  // ── 管理模板弹窗 ──
+  function openManageModal() {
+    removeModal();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'we-modal-overlay';
+    overlay.innerHTML = `
+      <div class="we-modal">
+        <div class="we-modal-header">
+          <span class="we-modal-title">🎭 管理视角模板</span>
+          <button class="we-close" id="we-modal-close">&times;</button>
+        </div>
+        <div class="we-modal-body" id="we-template-list"></div>
+        <div class="we-modal-footer">
+          <button class="we-btn we-btn-add" id="we-add-template">+ 新建视角模板</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    renderTemplateList();
+    overlay.querySelector('#we-modal-close').addEventListener('click', removeModal);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) removeModal();
+    });
+    overlay.querySelector('#we-add-template').addEventListener('click', () => {
+      openEditModal(null);
+    });
+  }
+
+  function renderTemplateList() {
+    const list = document.getElementById('we-template-list');
+    if (!list) return;
+    list.innerHTML = '';
+
+    getAllTemplates().forEach((t) => {
+      const item = document.createElement('div');
+      item.className = 'we-template-item' + (t.builtin ? ' we-template-builtin' : '');
+
+      const info = document.createElement('div');
+      info.className = 'we-template-info';
+      info.innerHTML = `<div class="we-template-name">${escapeHtml(t.name)}</div>
+        <div class="we-template-desc">${t.builtin ? '内置模板' : '自定义模板'}</div>`;
+
+      const actions = document.createElement('div');
+      actions.className = 'we-template-actions';
+
+      if (!t.builtin) {
+        const editBtn = document.createElement('button');
+        editBtn.textContent = '编辑';
+        editBtn.addEventListener('click', () => openEditModal(t));
+        actions.appendChild(editBtn);
+
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '删除';
+        delBtn.className = 'we-btn-danger';
+        delBtn.addEventListener('click', async () => {
+          customTemplates = customTemplates.filter((ct) => ct.id !== t.id);
+          if (selectedTemplateId === t.id) {
+            selectedTemplateId = 'builtin-default';
+          }
+          await saveTemplates();
+          populateTemplateSelect();
+          renderTemplateList();
+        });
+        actions.appendChild(delBtn);
+      } else {
+        const badge = document.createElement('button');
+        badge.textContent = '内置';
+        badge.disabled = true;
+        actions.appendChild(badge);
+      }
+
+      item.appendChild(info);
+      item.appendChild(actions);
+      list.appendChild(item);
+    });
+  }
+
+  // ── 编辑/新建模板弹窗 ──
+  function openEditModal(template) {
+    const isEdit = template !== null;
+    const overlay = document.getElementById('we-modal-overlay');
+
+    const editPanel = document.createElement('div');
+    editPanel.id = 'we-edit-panel';
+    editPanel.innerHTML = `
+      <div class="we-modal-header">
+        <span class="we-modal-title">${isEdit ? '✏️ 编辑模板' : '✏️ 新建视角模板'}</span>
+        <button class="we-close" id="we-edit-close">&times;</button>
+      </div>
+      <div class="we-edit-form">
+        <div class="we-form-group">
+          <label class="we-form-label">模板名称</label>
+          <input class="we-form-input" type="text" id="we-edit-name"
+            placeholder="例如：🐵 孙悟空 — 修行与觉悟"
+            value="${isEdit ? escapeAttr(template.name) : ''}">
+        </div>
+        <div class="we-form-group">
+          <label class="we-form-label">提示词模板</label>
+          <textarea class="we-form-textarea" id="we-edit-template"
+            placeholder="在这里编写提示词，使用 {{content}} 作为章节内容占位符">${isEdit ? escapeHtml(template.template) : ''}</textarea>
+          <div class="we-form-hint">使用 {{content}} 作为提取内容占位符</div>
+        </div>
+      </div>
+      <div class="we-edit-footer">
+        <button class="we-btn we-btn-cancel" id="we-edit-cancel">取消</button>
+        <button class="we-btn we-btn-save" id="we-edit-save">保存模板</button>
+      </div>
+    `;
+
+    // 隐藏管理列表，显示编辑面板
+    const modal = overlay.querySelector('.we-modal');
+    modal.innerHTML = '';
+    modal.appendChild(editPanel);
+
+    editPanel.querySelector('#we-edit-close').addEventListener('click', () => {
+      // 返回管理列表
+      removeModal();
+      openManageModal();
+    });
+
+    editPanel.querySelector('#we-edit-cancel').addEventListener('click', () => {
+      removeModal();
+      openManageModal();
+    });
+
+    editPanel.querySelector('#we-edit-save').addEventListener('click', async () => {
+      const name = document.getElementById('we-edit-name').value.trim();
+      const tmpl = document.getElementById('we-edit-template').value.trim();
+
+      if (!name) {
+        showToast('请输入模板名称');
+        return;
+      }
+      if (!tmpl) {
+        showToast('请输入提示词模板');
+        return;
+      }
+      if (!tmpl.includes('{{content}}')) {
+        showToast('模板中必须包含 {{content}} 占位符');
+        return;
+      }
+
+      if (isEdit) {
+        const idx = customTemplates.findIndex((ct) => ct.id === template.id);
+        if (idx !== -1) {
+          customTemplates[idx].name = name;
+          customTemplates[idx].template = tmpl;
+        }
+      } else {
+        customTemplates.push({
+          id: 'custom-' + Date.now(),
+          name,
+          builtin: false,
+          template: tmpl
+        });
+      }
+
+      await saveTemplates();
+      populateTemplateSelect();
+      removeModal();
+      showToast(isEdit ? '模板已更新' : '模板已创建');
+    });
+  }
+
+  function removeModal() {
+    const overlay = document.getElementById('we-modal-overlay');
+    if (overlay) overlay.remove();
+  }
+
   // ── Toast 通知 ──
   function showToast(message, duration = 2500) {
-    // 移除已有 toast
     const existing = document.getElementById('weread-extract-toast');
     if (existing) existing.remove();
 
@@ -191,7 +445,6 @@
     toast.textContent = message;
     document.body.appendChild(toast);
 
-    // 触发动画
     requestAnimationFrame(() => toast.classList.add('we-toast-show'));
 
     setTimeout(() => {
@@ -225,13 +478,14 @@
     try {
       const result = await EXTRACTOR.extractVisible();
       if (result.success) {
-        const copyContent = getCopyContent(result);
+        const tmpl = getTemplateById(selectedTemplateId);
+        const copyContent = EXTRACTOR.buildPrompt(result.content, tmpl.template);
         try {
           await navigator.clipboard.writeText(copyContent);
         } catch {
           fallbackCopy(copyContent);
         }
-        showToast(`已复制 ${result.wordCount} 字`);
+        showToast(`已复制 ${result.wordCount} 字（${tmpl.name}）`);
       } else {
         showToast(result.error || '提取失败');
       }
@@ -244,8 +498,12 @@
 
   // ── 键盘快捷键 ──
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && panelVisible) {
-      togglePanel(false);
+    if (e.key === 'Escape') {
+      if (document.getElementById('we-modal-overlay')) {
+        removeModal();
+      } else if (panelVisible) {
+        togglePanel(false);
+      }
     }
   });
 
@@ -272,8 +530,14 @@
     return div.innerHTML;
   }
 
+  function escapeAttr(text) {
+    return text.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
   function getCopyContent(result) {
-    return result?.copyContent || result?.content || '';
+    if (!result?.content) return '';
+    const tmpl = getTemplateById(selectedTemplateId);
+    return EXTRACTOR.buildPrompt(result.content, tmpl.template);
   }
 
   function fallbackCopy(text) {
@@ -288,6 +552,12 @@
   }
 
   // ── 初始化 ──
-  createFAB();
-  console.log('[WereadExtract] 已加载 · 点击右下角按钮一键提取');
+  async function init() {
+    await loadTemplates();
+    createFAB();
+    createPanel();
+    console.log('[WereadExtract] 已加载 · 点击右下角按钮一键提取');
+  }
+
+  init();
 })();

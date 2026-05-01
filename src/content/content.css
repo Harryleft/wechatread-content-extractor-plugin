@@ -111,6 +111,52 @@
   color: #dc2626;
 }
 
+/* ── 视角模板选择器 ── */
+.we-perspective-section {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed rgba(0, 0, 0, 0.1);
+}
+
+.we-perspective-label {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 6px;
+}
+
+.we-select-wrapper {
+  position: relative;
+}
+
+.we-select-wrapper select {
+  width: 100%;
+  padding: 8px 32px 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 13px;
+  background: #fff;
+  appearance: none;
+  cursor: pointer;
+  color: #374151;
+  font-family: inherit;
+}
+
+.we-select-wrapper::after {
+  content: '▾';
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+  pointer-events: none;
+}
+
+.we-select-wrapper select:focus {
+  outline: none;
+  border-color: #0087fc;
+  box-shadow: 0 0 0 2px rgba(0, 135, 252, 0.15);
+}
+
 /* ── 面板主体 ── */
 .we-body {
   padding: 12px 16px;
@@ -294,4 +340,238 @@
 .we-body::-webkit-scrollbar-thumb {
   background: #d1d5db;
   border-radius: 4px;
+}
+
+/* ── Modal 遮罩 ── */
+#we-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(2px);
+  z-index: 999999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Modal 卡片 ── */
+.we-modal {
+  width: 380px;
+  max-height: 80vh;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.we-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: #f8f9fa;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.we-modal-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: #1a1a1a;
+}
+
+.we-modal-body {
+  padding: 16px;
+  overflow-y: auto;
+  max-height: 360px;
+  flex: 1;
+}
+
+.we-modal-footer {
+  padding: 12px 16px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+/* ── 模板列表项 ── */
+.we-template-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  background: #fff;
+}
+
+.we-template-item:hover {
+  background: #f8f9fa;
+}
+
+.we-template-builtin {
+  border-style: dashed;
+  background: #fafafa;
+}
+
+.we-template-info {
+  flex: 1;
+}
+
+.we-template-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1a1a1a;
+}
+
+.we-template-builtin .we-template-name {
+  color: #9ca3af;
+}
+
+.we-template-desc {
+  font-size: 11px;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+
+.we-template-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.we-template-actions button {
+  background: none;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  color: #6b7280;
+  font-family: inherit;
+}
+
+.we-template-actions button:hover {
+  background: #f3f4f6;
+}
+
+.we-template-actions button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.we-btn-danger {
+  color: #dc2626 !important;
+  border-color: #fca5a5 !important;
+}
+
+.we-btn-danger:hover {
+  background: #fef2f2 !important;
+}
+
+/* ── 新建模板按钮 ── */
+.we-btn-add {
+  width: 100%;
+  padding: 8px;
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  color: #6b7280;
+  font-family: inherit;
+}
+
+.we-btn-add:hover {
+  background: #f8f9fa;
+  border-color: #0087fc;
+  color: #0087fc;
+}
+
+/* ── 编辑表单 ── */
+.we-edit-form {
+  padding: 16px;
+}
+
+.we-form-group {
+  margin-bottom: 12px;
+}
+
+.we-form-label {
+  display: block;
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.we-form-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.we-form-input:focus {
+  outline: none;
+  border-color: #0087fc;
+  box-shadow: 0 0 0 2px rgba(0, 135, 252, 0.15);
+}
+
+.we-form-textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 12px;
+  min-height: 160px;
+  font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.we-form-textarea:focus {
+  outline: none;
+  border-color: #0087fc;
+  box-shadow: 0 0 0 2px rgba(0, 135, 252, 0.15);
+}
+
+.we-form-hint {
+  font-size: 11px;
+  color: #9ca3af;
+  margin-top: 4px;
+}
+
+.we-edit-footer {
+  padding: 12px 16px;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.we-btn-cancel {
+  background: #f3f4f6;
+  color: #374151;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.we-btn-save {
+  background: #0087fc;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.we-btn-save:hover {
+  background: #0070d6;
 }
