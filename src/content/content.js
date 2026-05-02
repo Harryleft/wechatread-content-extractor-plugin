@@ -96,25 +96,38 @@
         } catch {
           fallbackCopy(copyContent);
         }
-        showToast(`已复制 ${result.wordCount} 字（${tmpl.name}）`);
+        if (result.method === 'canvas-hook') {
+          showToast(`已复制 ${result.wordCount} 字（Canvas）`, 3000, 'warn');
+          setTimeout(function () {
+            showToast('Tip: 滚动浏览完整章后再提取，可获取更多内容', 5000, 'tip');
+          }, 800);
+        } else {
+          showToast(`已复制 ${result.wordCount} 字（${tmpl.name}）`);
+        }
       } else {
-        showToast(result.error || '提取失败');
+        if (result.meta && result.meta.isCanvasMode) {
+          showToast('未检测到完整内容，请滚动浏览本章后再次点击提取', 4000, 'tip');
+        } else {
+          showToast(result.error || '提取失败', 3000, 'error');
+        }
       }
     } catch (e) {
-      showToast('提取失败: ' + e.message);
+      showToast('提取失败: ' + e.message, 3000, 'error');
     } finally {
       fab.classList.remove('we-fab-loading');
     }
   }
 
   // ── Toast 通知 ──
-  function showToast(message, duration = 2500) {
+  function showToast(message, duration, level) {
+    duration = duration || 2500;
+    level = level || 'success';
     const existing = document.getElementById('weread-extractor-toast');
     if (existing) existing.remove();
 
     const toast = document.createElement('div');
     toast.id = 'weread-extractor-toast';
-    toast.className = 'we-toast';
+    toast.className = 'we-toast we-toast-' + level;
     toast.textContent = message;
     document.body.appendChild(toast);
 

@@ -62,10 +62,30 @@
   transition: opacity 0.2s ease-out, transform 0.2s ease-out;
   pointer-events: none;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  box-shadow: 0 2px 12px rgba(22, 163, 74, 0.25);
 }
 
 .we-toast-show {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
+}
+
+/* Toast 级别 */
+.we-toast-success {
+  background: #16a34a;
+  box-shadow: 0 2px 12px rgba(22, 163, 74, 0.25);
+}
+
+.we-toast-warn {
+  background: #d97706;
+  box-shadow: 0 2px 12px rgba(217, 119, 6, 0.25);
+}
+
+.we-toast-error {
+  background: #dc2626;
+  box-shadow: 0 2px 12px rgba(220, 38, 38, 0.25);
+}
+
+.we-toast-tip {
+  background: #2563eb;
+  box-shadow: 0 2px 12px rgba(37, 99, 235, 0.25);
 }
