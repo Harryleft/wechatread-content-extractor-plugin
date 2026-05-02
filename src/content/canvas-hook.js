@@ -1545,40 +1545,65 @@
     }
     diag.chapterUidSources.dataAttributes = dataAttrs.slice(0, 10);
 
-    // 14. 直接尝试 fetchChapterContent API
+    // 14. 直接尝试多个 API 端点
     diag.apiProbe = {};
     try {
       var bId = state?.reader?.bookId || '';
       if (bId) {
         diag.apiProbe.bookId = bId;
-        // 尝试获取 chapterInfos 来找到 chapterUid
-        var infoUrl = '/web/book/chapterInfos?bookId=' + encodeURIComponent(bId) + '&synckey=0';
-        var infoResp = await originalFetch(infoUrl, {
-          credentials: 'include',
-          headers: { Accept: 'application/json' }
-        });
-        if (infoResp && infoResp.ok) {
-          var infoText = await infoResp.text();
-          var infoJson = JSON.parse(infoText);
-          diag.apiProbe.chapterInfosStatus = 'ok';
-          diag.apiProbe.chapterInfosKeys = Object.keys(infoJson);
-          var infos = infoJson.data || infoJson.chapterInfos || infoJson.chapters || [];
-          diag.apiProbe.chapterCount = Array.isArray(infos) ? infos.length : 0;
-          if (Array.isArray(infos) && infos.length > 0) {
-            diag.apiProbe.firstChapter = {
-              keys: Object.keys(infos[0]).slice(0, 15),
-              sample: JSON.stringify(infos[0]).slice(0, 200)
-            };
-            diag.apiProbe.lastChapter = {
-              sample: JSON.stringify(infos[infos.length - 1]).slice(0, 200)
-            };
+
+        // 尝试多个 API 端点
+        var apiUrls = [
+          { name: 'i.weread-chapterInfos', url: 'https://i.weread.qq.com/book/chapterInfos?bookId=' + encodeURIComponent(bId) },
+          { name: 'i.weread-bookInfo', url: 'https://i.weread.qq.com/book/info?bookId=' + encodeURIComponent(bId) },
+          { name: 'web-chapterInfos', url: '/web/book/chapterInfos?bookId=' + encodeURIComponent(bId) },
+          { name: 'web-bookInfo', url: '/web/book/info?bookId=' + encodeURIComponent(bId) },
+          { name: 'i.weread-chapterInfos-synckey', url: 'https://i.weread.qq.com/book/chapterInfos?bookId=' + encodeURIComponent(bId) + '&synckey=0' }
+        ];
+
+        for (var ai = 0; ai < apiUrls.length; ai++) {
+          try {
+            var apiResp = await originalFetch(apiUrls[ai].url, {
+              credentials: 'include',
+              headers: { Accept: 'application/json, text/plain, */*' }
+            });
+            var status = apiResp ? apiResp.status : 'no-response';
+            if (apiResp && apiResp.ok) {
+              var apiText = await apiResp.text();
+              diag.apiProbe[apiUrls[ai].name] = {
+                status: status,
+                length: apiText.length,
+                preview: apiText.slice(0, 500)
+              };
+            } else {
+              diag.apiProbe[apiUrls[ai].name] = { status: status };
+            }
+          } catch (e) {
+            diag.apiProbe[apiUrls[ai].name] = { error: e.message };
           }
-        } else {
-          diag.apiProbe.chapterInfosStatus = 'failed: ' + (infoResp ? infoResp.status : 'no response');
         }
       }
     } catch (e) {
       diag.apiProbe.error = e.message;
+    }
+
+    // 15. 捕获所有最近的网络请求（不限于 chapterContent）
+    diag.recentNetworkRequests = [];
+    try {
+      // 临时 hook fetch 捕获所有请求
+      var capturedUrls = [];
+      var tempFetch = window.fetch;
+      window.fetch = function () {
+        var u = normalizeRequestUrl(arguments[0]);
+        if (u) capturedUrls.push({ url: u.slice(0, 200), method: (arguments[1] || {}).method || 'GET', time: new Date().toISOString() });
+        return tempFetch.apply(this, arguments);
+      };
+      // 等待 2 秒收集请求
+      await new Promise(function (r) { setTimeout(r, 2000); });
+      window.fetch = tempFetch;
+      diag.recentNetworkRequests = capturedUrls;
+    } catch (e) {
+      diag.recentNetworkError = e.message;
     }
 
     console.log('[WereadExtractor][DIAGNOSIS] ' + JSON.stringify(diag, null, 2));
