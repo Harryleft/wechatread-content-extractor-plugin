@@ -1238,7 +1238,7 @@
 
   // ── 诊断：深度探查页面结构 ──
 
-  function runDiagnosis() {
+  async function runDiagnosis() {
     var diag = {};
 
     // 1. __INITIAL_STATE__
@@ -1520,6 +1520,67 @@
     }
     diag.vue3Scan.vueMarkers = vueMarkers.slice(0, 10);
 
+    // 13. chapterUid 来源探测
+    diag.chapterUidSources = {};
+    // 从 DOM 标题栏
+    var titleChapter = document.querySelector('.readerTopBar_title_chapter');
+    diag.chapterUidSources.titleBarText = titleChapter ? titleChapter.textContent.trim() : '';
+    // 从 URL 提取
+    var urlMatch = location.href.match(/reader\/([a-zA-Z0-9]+)/);
+    diag.chapterUidSources.urlEncId = urlMatch ? urlMatch[1] : '';
+    // 从 data-wr-co 属性（如果有）
+    var wrCoEls = document.querySelectorAll('[data-wr-co]');
+    diag.chapterUidSources.dataWrCo = wrCoEls.length > 0 ? 'count=' + wrCoEls.length : 'none';
+    // 从页面中搜索含 chapterUid 的 data 属性
+    var dataAttrs = [];
+    var allEls3 = document.querySelectorAll('*');
+    for (var di = 0; di < allEls3.length && di < 500; di++) {
+      var attrs = allEls3[di].attributes;
+      if (!attrs) continue;
+      for (var ai = 0; ai < attrs.length; ai++) {
+        if (/chapter|uid|bookid/i.test(attrs[ai].name)) {
+          dataAttrs.push({ tag: allEls3[di].tagName, attr: attrs[ai].name, val: (attrs[ai].value || '').slice(0, 80) });
+        }
+      }
+    }
+    diag.chapterUidSources.dataAttributes = dataAttrs.slice(0, 10);
+
+    // 14. 直接尝试 fetchChapterContent API
+    diag.apiProbe = {};
+    try {
+      var bId = state?.reader?.bookId || '';
+      if (bId) {
+        diag.apiProbe.bookId = bId;
+        // 尝试获取 chapterInfos 来找到 chapterUid
+        var infoUrl = '/web/book/chapterInfos?bookId=' + encodeURIComponent(bId) + '&synckey=0';
+        var infoResp = await originalFetch(infoUrl, {
+          credentials: 'include',
+          headers: { Accept: 'application/json' }
+        });
+        if (infoResp && infoResp.ok) {
+          var infoText = await infoResp.text();
+          var infoJson = JSON.parse(infoText);
+          diag.apiProbe.chapterInfosStatus = 'ok';
+          diag.apiProbe.chapterInfosKeys = Object.keys(infoJson);
+          var infos = infoJson.data || infoJson.chapterInfos || infoJson.chapters || [];
+          diag.apiProbe.chapterCount = Array.isArray(infos) ? infos.length : 0;
+          if (Array.isArray(infos) && infos.length > 0) {
+            diag.apiProbe.firstChapter = {
+              keys: Object.keys(infos[0]).slice(0, 15),
+              sample: JSON.stringify(infos[0]).slice(0, 200)
+            };
+            diag.apiProbe.lastChapter = {
+              sample: JSON.stringify(infos[infos.length - 1]).slice(0, 200)
+            };
+          }
+        } else {
+          diag.apiProbe.chapterInfosStatus = 'failed: ' + (infoResp ? infoResp.status : 'no response');
+        }
+      }
+    } catch (e) {
+      diag.apiProbe.error = e.message;
+    }
+
     console.log('[WereadExtractor][DIAGNOSIS] ' + JSON.stringify(diag, null, 2));
     return diag;
   }
@@ -1562,12 +1623,13 @@
     }
 
     if (event.data.type === 'WEREAD_REQ_DIAGNOSIS') {
-      var diag = runDiagnosis();
-      window.postMessage({
-        type: 'WEREAD_DIAGNOSIS',
-        requestId: event.data.requestId,
-        diagnosis: diag
-      }, '*');
+      runDiagnosis().then(function (diag) {
+        window.postMessage({
+          type: 'WEREAD_DIAGNOSIS',
+          requestId: event.data.requestId,
+          diagnosis: diag
+        }, '*');
+      });
     }
   });
 
