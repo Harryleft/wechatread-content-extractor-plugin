@@ -31,15 +31,17 @@
     try {
       const state = window.__INITIAL_STATE__;
       const readerVm = findReaderVm();
-      const currentChapter = readerVm?.currentChapter || state?.currentChapter || {};
       const reader = state?.reader || {};
+      const currentChapter = readerVm?.currentChapter || reader.currentChapter || state?.currentChapter || {};
+      const bookInfo = state?.bookInfo || reader.bookInfo || readerVm?.bookInfo || {};
+      const chapterInfos = state?.chapterInfos || reader.chapterInfos || readerVm?.chapterInfos || [];
 
       if (!state && !readerVm) return null;
 
       return {
-        bookId: state?.bookId || reader.bookId || readerVm?.bookInfo?.bookId || '',
-        bookInfo: state?.bookInfo || readerVm?.bookInfo || {},
-        chapterInfos: normalizeChapterInfos(state?.chapterInfos || readerVm?.chapterInfos || []),
+        bookId: state?.bookId || reader.bookId || bookInfo.bookId || '',
+        bookInfo,
+        chapterInfos: normalizeChapterInfos(chapterInfos),
         currentChapter: {
           title: currentChapter.title || '',
           chapterUid: currentChapter.chapterUid || reader.chapterUid || readerVm?.chapterUid || '',
@@ -48,7 +50,7 @@
         reader: {
           bookVersion: reader.bookVersion,
           chapterUid: reader.chapterUid || currentChapter.chapterUid || readerVm?.chapterUid || '',
-          bookId: reader.bookId || state?.bookId || readerVm?.bookInfo?.bookId || ''
+          bookId: reader.bookId || state?.bookId || bookInfo.bookId || ''
         }
       };
     } catch (e) {
