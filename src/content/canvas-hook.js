@@ -96,6 +96,14 @@
     if (!text.trim()) return;
     if (text.startsWith('abcdefghijklmn')) return;
 
+    // 基于时间间隔检测翻页：渲染间隔 >500ms 视为新页面
+    var now = Date.now();
+    if (lastFillTextTime > 0 && (now - lastFillTextTime) > BATCH_GAP_MS) {
+      captureBatch++;
+      positionMap.clear();
+    }
+    lastFillTextTime = now;
+
     var posKey = Math.round(parseFloat(x) || 0) + '|' + Math.round(parseFloat(y) || 0) + '|' + currentFontSize;
     var existingIdx = positionMap.get(posKey);
 
@@ -225,6 +233,8 @@
   let canvasResizeCount = 0;
   let offscreenFillTextCount = 0;
   let offscreenCreated = 0;
+  let lastFillTextTime = 0;
+  const BATCH_GAP_MS = 500;
 
   function createOffscreenProxyHandler() {
     return {
