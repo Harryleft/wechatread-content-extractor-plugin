@@ -73,6 +73,8 @@ class WereadExtractor {
         });
         if (matched?.title) meta.chapterTitle = matched.title;
       }
+
+      this._resolveChapterMetaFromInfos(meta, state.chapterInfos);
     }
 
     // 仅作为标题兜底，不参与正文提取。
@@ -82,7 +84,44 @@ class WereadExtractor {
       meta.chapterTitle = chapterEl.textContent.replace(/^\s*|\s*$/, '');
     }
 
+    if (state) {
+      this._resolveChapterMetaFromInfos(meta, state.chapterInfos);
+    }
+
     return meta;
+  }
+
+  _resolveChapterMetaFromInfos(meta, chapterInfos) {
+    if (!Array.isArray(chapterInfos) || chapterInfos.length === 0) return;
+    if (meta.chapterUid && meta.chapterTitle) return;
+
+    const byIndex = meta.chapterIndex >= 0
+      ? chapterInfos.find((chapter) => {
+        return Number(chapter.chapterIdx) === Number(meta.chapterIndex);
+      })
+      : null;
+    const byTitle = this._findUniqueChapterByTitle(chapterInfos, meta.chapterTitle);
+    const matched = byIndex || byTitle;
+
+    if (!matched) return;
+    if (!meta.chapterUid && matched.chapterUid) meta.chapterUid = String(matched.chapterUid);
+    if (!meta.chapterTitle && matched.title) meta.chapterTitle = matched.title;
+    if (meta.chapterIndex < 0 && matched.chapterIdx != null) meta.chapterIndex = matched.chapterIdx;
+  }
+
+  _findUniqueChapterByTitle(chapterInfos, title) {
+    const normalizedTitle = this._normalizeTitle(title);
+    if (!normalizedTitle) return null;
+
+    const matched = chapterInfos.filter((chapter) => {
+      return this._normalizeTitle(chapter.title) === normalizedTitle;
+    });
+
+    return matched.length === 1 ? matched[0] : null;
+  }
+
+  _normalizeTitle(title) {
+    return String(title || '').replace(/\s+/g, ' ').trim();
   }
 
   // ── 提取入口 ──
