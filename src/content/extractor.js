@@ -245,7 +245,10 @@ class WereadExtractor {
         count: result?.count ?? 0,
         batches: result?.batches ?? 0,
         deadCount: result?.deadCount ?? 0,
-        totalCaptured: result?.totalCaptured ?? 0
+        totalCaptured: result?.totalCaptured ?? 0,
+        clearRect: result?.clearRectCount ?? 0,
+        fillRect: result?.fillRectCount ?? 0,
+        drawImage: result?.drawImageCount ?? 0
       });
       if (result && result.text && result.text.trim().length > 0) {
         return this._normalizePlainText(result.text.trim());

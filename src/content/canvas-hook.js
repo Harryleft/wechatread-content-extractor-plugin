@@ -187,7 +187,7 @@
       previousBatch = line.batch;
     }
 
-    console.log('[WereadExtractor][canvas] captured=' + captured.length + ' dead=' + deadCount + ' alive=' + snapshot.length + ' batches=' + batches.size + ' lines=' + lines.length + ' skippedDupes=' + skippedDupes);
+    console.log('[WereadExtractor][canvas] captured=' + captured.length + ' dead=' + deadCount + ' alive=' + snapshot.length + ' batches=' + batches.size + ' lines=' + lines.length + ' skippedDupes=' + skippedDupes + ' | clearRect=' + clearRectCount + ' fillRect=' + fillRectCount + ' drawImage=' + drawImageCount);
 
     return {
       raw: sorted,
@@ -195,7 +195,10 @@
       count: sorted.length,
       batches: batches.size,
       deadCount: deadCount,
-      totalCaptured: captured.length
+      totalCaptured: captured.length,
+      clearRectCount: clearRectCount,
+      fillRectCount: fillRectCount,
+      drawImageCount: drawImageCount
     };
   }
 
@@ -213,6 +216,11 @@
 
     return result;
   }
+
+  let fillRectCount = 0;
+  let drawImageCount = 0;
+  let clearRectCount = 0;
+  let canvasResizeCount = 0;
 
   function installCanvasHook() {
     HTMLCanvasElement.prototype.getContext = function () {
@@ -233,6 +241,7 @@
 
           if (prop === 'clearRect') {
             return function (x, y, width, height) {
+              clearRectCount++;
               var canvas = target.canvas;
               var isSubstantial = !canvas
                 || (width >= canvas.width * 0.5 && height >= canvas.height * 0.5);
@@ -240,6 +249,25 @@
                 captureBatch++;
                 positionMap.clear();
               }
+              return value.apply(target, arguments);
+            };
+          }
+
+          if (prop === 'fillRect') {
+            return function (x, y, width, height) {
+              var canvas = target.canvas;
+              if (canvas && width >= canvas.width * 0.5 && height >= canvas.height * 0.5) {
+                fillRectCount++;
+                captureBatch++;
+                positionMap.clear();
+              }
+              return value.apply(target, arguments);
+            };
+          }
+
+          if (prop === 'drawImage') {
+            return function () {
+              drawImageCount++;
               return value.apply(target, arguments);
             };
           }
