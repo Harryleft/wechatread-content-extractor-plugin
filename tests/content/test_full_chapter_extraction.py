@@ -192,6 +192,48 @@ def test_get_book_meta_resolves_chapter_uid_from_chapter_title():
     assert result["chapterUid"] == "ef832f90813aba7f9g010253"
 
 
+def test_get_book_meta_reads_reader_current_chapter_state():
+    """Given 微信读书真实状态路径 When 获取元数据 Then 读取 reader.currentChapter。"""
+    script = build_extractor_script(
+        """
+  extractor.getPageState = async () => ({
+    reader: {
+      bookInfo: { bookId: '3300167610', title: '世界的逻辑', author: '测试作者' },
+      currentChapter: {
+        title: '第1章 语言，人类文明形成的关键因素',
+        chapterUid: 10,
+        chapterIdx: 10
+      },
+      chapterInfos: [
+        {
+          title: '第1章 语言，人类文明形成的关键因素',
+          chapterUid: 10,
+          chapterIdx: 10
+        }
+      ]
+    }
+  });
+
+  const meta = await Object.getPrototypeOf(extractor).getBookMeta.call(extractor);
+  printResult({
+    bookId: meta.bookId,
+    title: meta.title,
+    chapterTitle: meta.chapterTitle,
+    chapterUid: meta.chapterUid,
+    chapterIndex: meta.chapterIndex
+  });
+"""
+    )
+
+    result = run_node(script)
+
+    assert result["bookId"] == "3300167610"
+    assert result["title"] == "世界的逻辑"
+    assert result["chapterTitle"] == "第1章 语言，人类文明形成的关键因素"
+    assert result["chapterUid"] == 10
+    assert result["chapterIndex"] == 10
+
+
 def test_extract_visible_writes_debug_logs_with_required_prefix():
     """Given 调试开启 When 提取内容 Then 控制台日志必须使用指定前缀。"""
     script = build_extractor_script(
