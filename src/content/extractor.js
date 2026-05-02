@@ -160,13 +160,14 @@ class WereadExtractor {
         if (chapterResult.chapterUid && !meta.chapterUid) meta.chapterUid = chapterResult.chapterUid;
       }
 
-      if (!content) {
-        const canvasText = await this._extractFromCanvas();
-        this._debug('canvas-fallback-result', {
-          ok: Boolean(canvasText && canvasText.length > 20),
-          chars: canvasText ? canvasText.length : 0
-        });
-        if (canvasText && canvasText.length > 20) {
+      // Canvas 兜底：当完整章节路径失败或内容偏短时，尝试 Canvas 累积数据
+      const canvasText = await this._extractFromCanvas();
+      this._debug('canvas-result', {
+        ok: Boolean(canvasText && canvasText.length > 20),
+        chars: canvasText ? canvasText.length : 0
+      });
+      if (canvasText && canvasText.length > 20) {
+        if (!content || canvasText.length > content.length) {
           content = canvasText;
           method = 'canvas-hook';
         }
