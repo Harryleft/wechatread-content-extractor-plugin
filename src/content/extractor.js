@@ -13,7 +13,7 @@ class WereadExtractor {
     this._statePromise = null;
     this._lastStateUrl = null;
     this._extracting = false;
-    this._debugEnabled = true;
+    this._debugEnabled = false;
   }
 
   // ── 页面状态 ──

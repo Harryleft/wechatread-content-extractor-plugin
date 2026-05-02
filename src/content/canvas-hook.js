@@ -18,6 +18,7 @@
   const seenLineTexts = new Set();
   const proxyMap = new WeakMap();
   const positionMap = new Map();
+  const batchPositionMaps = new Map();
   const chapterResponseCache = [];
   const originalGetContext = HTMLCanvasElement.prototype.getContext;
   const originalFetch = window.fetch;
@@ -83,6 +84,7 @@
         captureBatch = 0;
         seenLineTexts.clear();
         positionMap.clear();
+        batchPositionMaps.clear();
       }
       if (currentUid) {
         lastChapterUid = String(currentUid);
@@ -100,19 +102,28 @@
     var now = Date.now();
     if (lastFillTextTime > 0 && (now - lastFillTextTime) > BATCH_GAP_MS) {
       captureBatch++;
-      positionMap.clear();
     }
     lastFillTextTime = now;
 
+    // 获取当前批次的独立 position map
+    var posMap = batchPositionMaps.get(captureBatch);
+    if (!posMap) {
+      posMap = new Map();
+      batchPositionMaps.set(captureBatch, posMap);
+    }
+
     var posKey = Math.round(parseFloat(x) || 0) + '|' + Math.round(parseFloat(y) || 0) + '|' + currentFontSize;
-    var existingIdx = positionMap.get(posKey);
+    var existingIdx = posMap.get(posKey);
 
     if (existingIdx !== undefined && captured[existingIdx]) {
       if (captured[existingIdx].t === text) return;
-      captured[existingIdx].dead = true;
+      // 跨批次保护：只有同批次内才标记 dead
+      if (captured[existingIdx].b === captureBatch) {
+        captured[existingIdx].dead = true;
+      }
     }
 
-    positionMap.set(posKey, captured.length);
+    posMap.set(posKey, captured.length);
     captured.push({
       t: text,
       x: parseFloat(x) || 0,
@@ -247,10 +258,7 @@
       }
     } catch (e) { /* 忽略 */ }
 
-    console.log('[WereadExtractor][canvas] captured=' + captured.length + ' dead=' + deadCount + ' alive=' + snapshot.length + ' batches=' + batches.size + ' lines=' + lines.length + ' skippedDupes=' + skippedDupes + ' | clearRect=' + clearRectCount + ' fillRect=' + fillRectCount + ' drawImage=' + drawImageCount + ' strokeText=' + strokeTextCount + ' | domImgs=' + domImgCount + ' domTextBlocks=' + domTextBlocks + ' domTextChars=' + domTextChars);
-    if (domImgSamples.length > 0) {
-      console.log('[WereadExtractor][canvas-imgs] ' + domImgSamples.join(' | '));
-    }
+    console.log('[WereadExtractor] total=' + captured.length + ' alive=' + snapshot.length + ' batches=' + batches.size + ' dead=' + deadCount);
 
     return {
       raw: sorted,
@@ -380,7 +388,6 @@
                 || (width >= canvas.width * 0.5 && height >= canvas.height * 0.5);
               if (isSubstantial) {
                 captureBatch++;
-                positionMap.clear();
               }
               return value.apply(target, arguments);
             };
@@ -392,7 +399,6 @@
               if (canvas && width >= canvas.width * 0.5 && height >= canvas.height * 0.5) {
                 fillRectCount++;
                 captureBatch++;
-                positionMap.clear();
               }
               return value.apply(target, arguments);
             };
