@@ -7,6 +7,7 @@
  * 3. 多次滚动 + 多次提取
  * 4. 滚动重叠区域去重
  * 5. 章节切换时缓冲区重置
+ * 6. 同位置不同文字的位置去重
  */
 
 /* eslint-disable no-undef */
@@ -19,17 +20,29 @@ function createCanvasHook() {
   let currentFontSize = 0;
   let lastChapterUid = null;
   const seenLineTexts = new Set();
+  const positionMap = new Map();
 
   function recordText(text, x, y) {
     if (typeof text !== 'string') return;
     if (!text.trim()) return;
     if (text.startsWith('abcdefghijklmn')) return;
+
+    var posKey = Math.round(parseFloat(x) || 0) + '|' + Math.round(parseFloat(y) || 0) + '|' + currentFontSize;
+    var existingIdx = positionMap.get(posKey);
+
+    if (existingIdx !== undefined && captured[existingIdx]) {
+      if (captured[existingIdx].t === text) return;
+      captured[existingIdx].dead = true;
+    }
+
+    positionMap.set(posKey, captured.length);
     captured.push({
       t: text,
       x: parseFloat(x) || 0,
       y: parseFloat(y) || 0,
       s: currentFontSize,
-      b: captureBatch
+      b: captureBatch,
+      dead: false
     });
   }
 
@@ -37,6 +50,7 @@ function createCanvasHook() {
     const isSubstantial = width >= 400 * 0.5 && height >= 800 * 0.5;
     if (isSubstantial) {
       captureBatch++;
+      positionMap.clear();
     }
   }
 
@@ -44,6 +58,7 @@ function createCanvasHook() {
     captured = [];
     captureBatch = 0;
     seenLineTexts.clear();
+    positionMap.clear();
     lastChapterUid = uid;
   }
 
@@ -52,7 +67,7 @@ function createCanvasHook() {
   }
 
   function buildCanvasText() {
-    const snapshot = captured.slice();
+    const snapshot = captured.filter(function(item) { return !item.dead; });
     const sorted = snapshot.sort(function (a, b) {
       return a.b - b.b || a.y - b.y || a.x - b.x;
     });
@@ -286,7 +301,6 @@ function testLargeChapterSimulation() {
   var hook = createCanvasHook();
 
   // 模拟一个长章节：10屏滚动，每屏30行，共300行
-  // 这模拟了用户报告的"只能抓3700字符"的问题场景
   var totalLines = 300;
   var linesPerScreen = 30;
   var screens = Math.ceil(totalLines / linesPerScreen);
@@ -308,8 +322,6 @@ function testLargeChapterSimulation() {
   console.log('PASS: testLargeChapterSimulation (' + totalLines + ' lines, ' +
     totalChars + ' chars across ' + screens + ' screens)');
 
-  // 验证之前的 bug：如果只取第一屏，约30行 ≈ 900字
-  // 修复后应取全部 300 行
   assert(totalChars > 3000, '长章节总字符数应远超3700限制: ' + totalChars);
 }
 
@@ -335,7 +347,6 @@ function testTitleFontSize() {
 
   assert(textLines[0] === '## 章节标题', '标题应以 ## 开头');
   assert(textLines[1] === '正文内容第一行', '正文应正确输出');
-  // 批次间有空行
   var emptyIdx = textLines.indexOf('');
   assert(emptyIdx > 0, '批次间应有空行');
   assert(textLines[emptyIdx + 1] === '正文内容第三行', '第二屏内容在空行之后');
@@ -346,18 +357,15 @@ function testTitleFontSize() {
 function testRepeatedExtraction() {
   var hook = createCanvasHook();
 
-  // 渲染第一屏
   renderScreen(hook, generateScreenLines(1, 10, 16));
   var result1 = hook.buildCanvasText();
   var lines1 = result1.text.split('\n').filter(function (l) { return l !== ''; });
   assert(lines1.length === 10, '首次提取应有10行');
 
-  // 再次提取，不清空，应得到相同结果
   var result2 = hook.buildCanvasText();
   var lines2 = result2.text.split('\n').filter(function (l) { return l !== ''; });
   assert(lines2.length === 10, '再次提取仍应有10行');
 
-  // 滚动后渲染新内容
   hook.clearCanvas(400, 800);
   renderScreen(hook, generateScreenLines(11, 10, 16));
 
@@ -386,6 +394,87 @@ function testDuplicateGlyphDrawsAreDeduped() {
   console.log('PASS: testDuplicateGlyphDrawsAreDeduped');
 }
 
+function testOverlappingPositionDedupOnChapterSwitch() {
+  var hook = createCanvasHook();
+
+  // 章节1内容：在 y=50 位置渲染
+  hook.setFontSize(16);
+  hook.recordText('在', 20, 50);
+  hook.recordText('澳', 40, 50);
+  hook.recordText('洲', 60, 50);
+  hook.recordText('土', 80, 50);
+
+  // 切换章节后，canvas 在同位置渲染新内容（无 clearRect）
+  hook.recordText('共', 20, 50);  // same pos as '在'
+  hook.recordText('餐', 40, 50);  // same pos as '澳'
+  hook.recordText('是', 60, 50);  // same pos as '洲'
+  hook.recordText('一', 80, 50);  // same pos as '土'
+
+  var result = hook.buildCanvasText();
+  var lines = result.text.split('\n').filter(function (l) { return l !== ''; });
+
+  assert(lines.length === 1, '应只有一行（位置去重后）');
+  assert(lines[0] === '共餐是一', '应保留最新渲染的文字，实际: ' + lines[0]);
+
+  console.log('PASS: testOverlappingPositionDedupOnChapterSwitch');
+}
+
+function testSameTextAtSamePositionNotDuplicated() {
+  var hook = createCanvasHook();
+
+  hook.setFontSize(16);
+  hook.recordText('你好', 20, 50);
+  hook.recordText('你好', 20, 50);
+
+  var result = hook.buildCanvasText();
+  var lines = result.text.split('\n').filter(function (l) { return l !== ''; });
+
+  assert(lines.length === 1, '同位置同文字不应重复');
+  assert(lines[0] === '你好', '内容应正确');
+
+  console.log('PASS: testSameTextAtSamePositionNotDuplicated');
+}
+
+function testDifferentFontSizeDifferentPosition() {
+  var hook = createCanvasHook();
+
+  // 标题和正文在不同 y 位置，字号不同
+  hook.setFontSize(28);
+  hook.recordText('标题', 20, 50);
+  hook.setFontSize(16);
+  hook.recordText('正文', 20, 100);
+
+  var result = hook.buildCanvasText();
+  var lines = result.text.split('\n').filter(function (l) { return l !== ''; });
+
+  assert(lines.length === 2, '不同 y 位置应输出两行');
+  assert(lines[0] === '## 标题', '标题应以 ## 开头');
+  assert(lines[1] === '正文', '正文应正确输出');
+  console.log('PASS: testDifferentFontSizeDifferentPosition');
+}
+
+function testClearRectResetsPositionMap() {
+  var hook = createCanvasHook();
+
+  hook.setFontSize(16);
+  hook.recordText('旧内容', 20, 50);
+
+  // 清空 canvas（substantial clear）
+  hook.clearCanvas(400, 800);
+
+  // 在同位置渲染新内容，不应被旧内容的 positionMap 阻挡
+  hook.recordText('新内容', 20, 50);
+
+  var result = hook.buildCanvasText();
+  var lines = result.text.split('\n').filter(function (l) { return l !== ''; });
+
+  assert(lines.length === 2, 'clearRect 后同位置应允许新内容，实际: ' + lines.length);
+  assert(lines[0] === '旧内容', '旧内容应在第一行');
+  assert(lines[1] === '新内容', '新内容应在第二行');
+
+  console.log('PASS: testClearRectResetsPositionMap');
+}
+
 // ── 运行所有测试 ──
 
 console.log('=== Canvas 跨屏幕文本累积测试 ===\n');
@@ -399,7 +488,11 @@ var tests = [
   testLargeChapterSimulation,
   testTitleFontSize,
   testRepeatedExtraction,
-  testDuplicateGlyphDrawsAreDeduped
+  testDuplicateGlyphDrawsAreDeduped,
+  testOverlappingPositionDedupOnChapterSwitch,
+  testSameTextAtSamePositionNotDuplicated,
+  testDifferentFontSizeDifferentPosition,
+  testClearRectResetsPositionMap
 ];
 
 var passed = 0;

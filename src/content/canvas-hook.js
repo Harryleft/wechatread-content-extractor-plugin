@@ -17,6 +17,7 @@
   let lastChapterUid = null;
   const seenLineTexts = new Set();
   const proxyMap = new WeakMap();
+  const positionMap = new Map();
   const chapterResponseCache = [];
   const originalGetContext = HTMLCanvasElement.prototype.getContext;
   const originalFetch = window.fetch;
@@ -81,6 +82,7 @@
         captured = [];
         captureBatch = 0;
         seenLineTexts.clear();
+        positionMap.clear();
       }
       if (currentUid) {
         lastChapterUid = String(currentUid);
@@ -94,18 +96,28 @@
     if (!text.trim()) return;
     if (text.startsWith('abcdefghijklmn')) return;
 
+    var posKey = Math.round(parseFloat(x) || 0) + '|' + Math.round(parseFloat(y) || 0) + '|' + currentFontSize;
+    var existingIdx = positionMap.get(posKey);
+
+    if (existingIdx !== undefined && captured[existingIdx]) {
+      if (captured[existingIdx].t === text) return;
+      captured[existingIdx].dead = true;
+    }
+
+    positionMap.set(posKey, captured.length);
     captured.push({
       t: text,
       x: parseFloat(x) || 0,
       y: parseFloat(y) || 0,
       s: currentFontSize,
-      b: captureBatch
+      b: captureBatch,
+      dead: false
     });
   }
 
   function buildCanvasText() {
     detectChapterChange();
-    const snapshot = captured.slice();
+    const snapshot = captured.filter(function(item) { return !item.dead; });
     const sorted = snapshot.sort(function (a, b) {
       return a.b - b.b || a.y - b.y || a.x - b.x;
     });
@@ -212,6 +224,7 @@
                 || (width >= canvas.width * 0.5 && height >= canvas.height * 0.5);
               if (isSubstantial) {
                 captureBatch++;
+                positionMap.clear();
               }
               return value.apply(target, arguments);
             };

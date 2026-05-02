@@ -171,10 +171,27 @@
         });
         actions.appendChild(delBtn);
       } else {
-        const badge = document.createElement('span');
-        badge.className = 'template-badge';
-        badge.textContent = '内置';
-        actions.appendChild(badge);
+        const editBtn = document.createElement('button');
+        editBtn.className = 'btn-sm';
+        editBtn.textContent = '编辑';
+        editBtn.addEventListener('click', () => openEditPanel(t));
+        actions.appendChild(editBtn);
+
+        if (t.overridden) {
+          const resetBtn = document.createElement('button');
+          resetBtn.className = 'btn-sm';
+          resetBtn.textContent = '恢复默认';
+          resetBtn.addEventListener('click', async () => {
+            await chrome.tabs.sendMessage(tabId, {
+              type: 'RESET_BUILTIN_OVERRIDE',
+              templateId: t.id
+            }).catch(() => null);
+            await loadTemplates();
+            populateTemplateSelect();
+            renderTemplateList();
+          });
+          actions.appendChild(resetBtn);
+        }
       }
 
       item.appendChild(info);
@@ -328,13 +345,25 @@
     if (!tmpl) { alert('请输入提示词模板'); return; }
     if (!tmpl.includes('{{content}}')) { alert('模板中必须包含 {{content}} 占位符'); return; }
 
-    const resp = await chrome.tabs.sendMessage(tabId, {
-      type: 'SAVE_TEMPLATE',
-      template: { id: editingTemplateId, name, template: tmpl }
-    }).catch(() => null);
+    let resp;
+    const isBuiltin = editingTemplateId && editingTemplateId.startsWith('builtin-');
+
+    if (isBuiltin) {
+      resp = await chrome.tabs.sendMessage(tabId, {
+        type: 'SAVE_BUILTIN_OVERRIDE',
+        templateId: editingTemplateId,
+        template: tmpl
+      }).catch(() => null);
+    } else {
+      resp = await chrome.tabs.sendMessage(tabId, {
+        type: 'SAVE_TEMPLATE',
+        template: { id: editingTemplateId, name, template: tmpl }
+      }).catch(() => null);
+    }
 
     if (resp?.ok) {
-      customTemplates = resp.templates || [];
+      if (!isBuiltin) customTemplates = resp.templates || customTemplates;
+      await loadTemplates();
       populateTemplateSelect();
       renderTemplateList();
       showPanel('manage');

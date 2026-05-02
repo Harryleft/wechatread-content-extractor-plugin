@@ -20,6 +20,7 @@
 
   // ── 状态 ──
   let customTemplates = [];
+  let builtinOverrides = {};
   let selectedTemplateId = 'builtin-default';
 
   // ── 模板存储 ──
@@ -27,10 +28,11 @@
   function loadTemplates() {
     return new Promise((resolve) => {
       chrome.storage?.local?.get(
-        ['wereadTemplates', 'wereadSelectedTemplate'],
+        ['wereadTemplates', 'wereadSelectedTemplate', 'wereadBuiltinOverrides'],
         (data) => {
           customTemplates = data.wereadTemplates || [];
           selectedTemplateId = data.wereadSelectedTemplate || 'builtin-default';
+          builtinOverrides = data.wereadBuiltinOverrides || {};
           resolve();
         }
       );
@@ -40,14 +42,19 @@
   function saveTemplates() {
     return new Promise((resolve) => {
       chrome.storage?.local?.set(
-        { wereadTemplates: customTemplates, wereadSelectedTemplate: selectedTemplateId },
+        { wereadTemplates: customTemplates, wereadSelectedTemplate: selectedTemplateId, wereadBuiltinOverrides: builtinOverrides },
         resolve
       );
     }).catch(() => {});
   }
 
   function getAllTemplates() {
-    return [...BUILTIN_TEMPLATES, ...customTemplates];
+    const builtins = BUILTIN_TEMPLATES.map((t) => {
+      const override = builtinOverrides[t.id];
+      if (override) return { ...t, template: override, overridden: true };
+      return t;
+    });
+    return [...builtins, ...customTemplates];
   }
 
   function getTemplateById(id) {
@@ -136,8 +143,13 @@
 
     // 模板相关消息
     if (msg.type === 'GET_TEMPLATES') {
+      const builtins = BUILTIN_TEMPLATES.map((t) => {
+        const override = builtinOverrides[t.id];
+        if (override) return { ...t, template: override, overridden: true };
+        return t;
+      });
       sendResponse({
-        builtin: BUILTIN_TEMPLATES,
+        builtin: builtins,
         custom: customTemplates,
         selectedId: selectedTemplateId
       });
@@ -179,6 +191,24 @@
       }
       saveTemplates();
       sendResponse({ ok: true, templates: customTemplates });
+      return false;
+    }
+    if (msg.type === 'SAVE_BUILTIN_OVERRIDE') {
+      const { templateId, template } = msg;
+      if (!templateId || !template) {
+        sendResponse({ ok: false, error: '缺少参数' });
+        return false;
+      }
+      builtinOverrides[templateId] = template;
+      saveTemplates();
+      sendResponse({ ok: true });
+      return false;
+    }
+    if (msg.type === 'RESET_BUILTIN_OVERRIDE') {
+      const { templateId } = msg;
+      if (templateId) delete builtinOverrides[templateId];
+      saveTemplates();
+      sendResponse({ ok: true });
       return false;
     }
     if (msg.type === 'BUILD_PROMPT') {

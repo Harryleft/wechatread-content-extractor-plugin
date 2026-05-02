@@ -50,11 +50,15 @@ async function main() {
   logStep('chapter-infos', summarizeChapterInfos(chapterInfos));
 
   const selected = selectChapter(chapterInfos, {
-    chapterUid: args.chapterUid,
+    chapterUid: args.chapterUid || (args.qualityOnly ? getCurrentChapter(reader.state).chapterUid : ''),
     chapterTitle: args.chapterTitle
   });
 
   logStep('chapter-selection', selected);
+
+  if (args.qualityOnly) {
+    logStep('quality-only', buildQualitySummary(reader.state, chapterInfos, selected));
+  }
 
   if (bookId && selected.chapterUid) {
     await probeChapterContent(bookId, selected.chapterUid, cookieHeader);
@@ -173,7 +177,7 @@ function findMatchingBrace(text, startIndex) {
 
 function summarizeState(state, html, url) {
   const chapterInfos = findChapterInfos(state);
-  const currentChapter = state?.currentChapter || state?.reader?.currentChapter || {};
+  const currentChapter = getCurrentChapter(state);
 
   return {
     url,
@@ -190,6 +194,10 @@ function summarizeState(state, html, url) {
     readerChapterUid: state?.reader?.chapterUid || '',
     chapterInfosCount: chapterInfos.length
   };
+}
+
+function getCurrentChapter(state) {
+  return state?.reader?.currentChapter || state?.currentChapter || {};
 }
 
 function findChapterInfos(state) {
@@ -255,6 +263,23 @@ function selectChapter(chapterInfos, options) {
     found: false,
     chapterUid: '',
     hint: '传入 --chapter-uid 或 --chapter-title 可以继续探测 chapterContent。'
+  };
+}
+
+function buildQualitySummary(state, chapterInfos, selected) {
+  const currentChapter = getCurrentChapter(state);
+  const selectedChapter = selected.chapter || summarizeChapter(currentChapter);
+  const candidates = summarizeContentCandidates(state);
+  const largest = candidates[0] || null;
+
+  return {
+    currentChapter: summarizeChapter(currentChapter),
+    selectedChapter,
+    expectedWordCount: selectedChapter?.wordCount ?? null,
+    candidateCount: candidates.length,
+    largestCandidate: largest,
+    hasLikelyFullTextInInitialState: Boolean(largest && selectedChapter?.wordCount && largest.length >= selectedChapter.wordCount * 0.8),
+    note: '不输出正文。CLI 只能扫描初始状态和接口响应，不能执行真实 Canvas Hook。'
   };
 }
 
