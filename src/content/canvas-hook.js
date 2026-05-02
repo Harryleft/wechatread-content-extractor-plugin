@@ -139,11 +139,12 @@
 
     for (let i = 0; i < lines.length; i += 1) {
       const line = lines[i];
-      line.parts.sort(function (a, b) {
+      const parts = dedupeLineParts(line.parts);
+      parts.sort(function (a, b) {
         return a.x - b.x;
       });
 
-      const text = line.parts.map(function (part) {
+      const text = parts.map(function (part) {
         return part.t;
       }).join('');
 
@@ -170,6 +171,21 @@
       text: result.join('\n'),
       count: sorted.length
     };
+  }
+
+  function dedupeLineParts(parts) {
+    const result = [];
+    const seen = new Set();
+
+    for (let i = 0; i < parts.length; i += 1) {
+      const part = parts[i];
+      const key = Math.round(part.x) + '|' + part.t;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push(part);
+    }
+
+    return result;
   }
 
   function installCanvasHook() {
