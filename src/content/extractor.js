@@ -161,14 +161,16 @@ class WereadExtractor {
       }
 
       // Canvas 兜底：当完整章节路径失败或内容偏短时，尝试 Canvas 累积数据
-      const canvasText = await this._extractFromCanvas();
+      const canvasResult = await this._extractFromCanvas();
+      let canvasBatches = canvasResult ? canvasResult.batches : 0;
       this._debug('canvas-result', {
-        ok: Boolean(canvasText && canvasText.length > 20),
-        chars: canvasText ? canvasText.length : 0
+        ok: Boolean(canvasResult && canvasResult.text && canvasResult.text.length > 20),
+        chars: canvasResult ? canvasResult.text.length : 0,
+        batches: canvasBatches
       });
-      if (canvasText && canvasText.length > 20) {
-        if (!content || canvasText.length > content.length) {
-          content = canvasText;
+      if (canvasResult && canvasResult.text && canvasResult.text.length > 20) {
+        if (!content || canvasResult.text.length > content.length) {
+          content = canvasResult.text;
           method = 'canvas-hook';
         }
       }
@@ -196,7 +198,8 @@ class WereadExtractor {
         format: 'markdown',
         method: method || 'full-chapter',
         charCount: formatted.length,
-        wordCount: content.replace(/\s/g, '').length
+        wordCount: content.replace(/\s/g, '').length,
+        canvasBatches: canvasBatches
       };
     } finally {
       this._extracting = false;
@@ -251,12 +254,17 @@ class WereadExtractor {
         domTextChars: result?.domTextChars ?? 0
       });
       if (result && result.text && result.text.trim().length > 0) {
-        return this._normalizePlainText(result.text.trim());
+        return {
+          text: this._normalizePlainText(result.text.trim()),
+          batches: result.batches || 0,
+          totalCaptured: result.totalCaptured || 0,
+          deadCount: result.deadCount || 0
+        };
       }
     } catch (e) {
       console.warn('[WereadExtractor] Canvas hook 提取失败:', e);
     }
-    return '';
+    return null;
   }
 
   async _extractFullChapterContent(meta) {

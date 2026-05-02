@@ -97,9 +97,10 @@
           fallbackCopy(copyContent);
         }
         if (result.method === 'canvas-hook') {
-          showToast(`已复制 ${result.wordCount} 字（Canvas）`, 3000, 'warn');
+          var pages = result.canvasBatches || 1;
+          showToast(`已复制 ${result.wordCount} 字（${pages}页）`, 3000, 'warn');
           setTimeout(function () {
-            showToast('Tip: 滚动浏览完整章后再提取，可获取更多内容', 5000, 'tip');
+            showToast('继续翻页浏览后再次提取，可累积更多内容', 4000, 'tip');
           }, 800);
         } else {
           showToast(`已复制 ${result.wordCount} 字（${tmpl.name}）`);
