@@ -1444,6 +1444,82 @@
     diag.domStructure.hasRootApp = !!appEl;
     diag.domStructure.rootAppId = appEl ? appEl.id : 'none';
 
+    // 11. 章节内容 DOM 搜索 — 从 webpack 模块发现的 CSS 类名
+    diag.chapterDomSearch = {};
+    var chapterSelectors = [
+      '.chapterContent_p',
+      '.readerChapterContent',
+      '[class*="chapterContent"]',
+      '[class*="ChapterContent"]',
+      '[class*="chapter_content"]',
+      '.readerContent .app_content',
+      '.readerContent .app_content > div',
+      '.wr_readerContent',
+      '[data-wr-co]',
+      '.readerChapterContent_container',
+      '[class*="readerChapter"]'
+    ];
+    chapterSelectors.forEach(function (sel) {
+      try {
+        var els = document.querySelectorAll(sel);
+        if (els.length > 0) {
+          diag.chapterDomSearch[sel] = {
+            count: els.length,
+            samples: []
+          };
+          for (var j = 0; j < els.length && j < 3; j++) {
+            var el = els[j];
+            diag.chapterDomSearch[sel].samples.push({
+              tag: el.tagName,
+              text: (el.textContent || '').slice(0, 200),
+              html: (el.innerHTML || '').slice(0, 300),
+              visible: el.offsetWidth > 0 || el.offsetHeight > 0,
+              display: getComputedStyle(el).display,
+              visibility: getComputedStyle(el).visibility
+            });
+          }
+        }
+      } catch (e) {}
+    });
+
+    // 12. Vue 3 实例探测（扩展扫描范围）
+    diag.vue3Scan = {};
+    var appEl2 = document.querySelector('#app');
+    if (appEl2) {
+      var appKeys = Object.keys(appEl2);
+      diag.vue3Scan.appElementKeys = appKeys.filter(function (k) {
+        return k.startsWith('__') || k.startsWith('_');
+      });
+      diag.vue3Scan.allAppKeys = appKeys.slice(0, 30);
+      // Vue 3 app 实例通常挂在 _instance 或 __vue_app__
+      if (appEl2.__vue_app__) {
+        diag.vue3Scan.hasVueApp = true;
+        diag.vue3Scan.vueAppConfig = Object.keys(appEl2.__vue_app__);
+      }
+      if (appEl2._instance) {
+        diag.vue3Scan.hasInstance = true;
+      }
+    }
+    // 扫描 app_content 的 Vue 3 属性
+    var appContent = document.querySelector('.app_content');
+    if (appContent) {
+      var acKeys = Object.keys(appContent);
+      diag.vue3Scan.appContentPrivateKeys = acKeys.filter(function (k) {
+        return k.startsWith('__') || k.startsWith('_');
+      });
+    }
+    // 扫描所有带 __vue 前缀属性的元素
+    var vueMarkers = [];
+    var allEls2 = document.querySelectorAll('*');
+    for (var vi = 0; vi < allEls2.length && vi < 2000; vi++) {
+      var ek = Object.keys(allEls2[vi]);
+      var vm = ek.filter(function (k) { return k.indexOf('vue') !== -1 || k.indexOf('Vue') !== -1; });
+      if (vm.length > 0) {
+        vueMarkers.push({ tag: allEls2[vi].tagName, cls: (allEls2[vi].className || '').toString().slice(0, 50), keys: vm });
+      }
+    }
+    diag.vue3Scan.vueMarkers = vueMarkers.slice(0, 10);
+
     console.log('[WereadExtractor][DIAGNOSIS] ' + JSON.stringify(diag, null, 2));
     return diag;
   }
