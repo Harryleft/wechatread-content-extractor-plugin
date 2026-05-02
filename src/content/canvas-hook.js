@@ -1404,6 +1404,8 @@
     }
   });
 
+  window.__wereadDiagnose = runDiagnosis;
+
   installOffscreenCanvasHook();
   installCanvasHook();
   installNetworkHook();
