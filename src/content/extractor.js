@@ -13,6 +13,7 @@ class WereadExtractor {
     this._statePromise = null;
     this._lastStateUrl = null;
     this._extracting = false;
+    this._debugEnabled = true;
   }
 
   // ── 页面状态 ──
@@ -93,9 +94,23 @@ class WereadExtractor {
     this._extracting = true;
     try {
       const meta = await this.getBookMeta();
+      this._debug('extract-start', {
+        bookId: meta.bookId,
+        chapterUid: meta.chapterUid,
+        chapterTitle: meta.chapterTitle,
+        isCanvasMode: meta.isCanvasMode
+      });
+
       const chapterResult = await this._extractFullChapterContent(meta);
       let content = chapterResult.rawContent || '';
       let method = chapterResult.source || '';
+      this._debug('full-chapter-result', {
+        ok: Boolean(content),
+        source: chapterResult.source || '',
+        error: chapterResult.error || '',
+        chars: content.length,
+        chapterUid: chapterResult.chapterUid || ''
+      });
 
       if (content) {
         if (chapterResult.title && !meta.chapterTitle) meta.chapterTitle = chapterResult.title;
@@ -104,6 +119,10 @@ class WereadExtractor {
 
       if (!content) {
         const canvasText = await this._extractFromCanvas();
+        this._debug('canvas-fallback-result', {
+          ok: Boolean(canvasText && canvasText.length > 20),
+          chars: canvasText ? canvasText.length : 0
+        });
         if (canvasText && canvasText.length > 20) {
           content = canvasText;
           method = 'canvas-hook';
@@ -111,10 +130,20 @@ class WereadExtractor {
       }
 
       if (!content) {
+        this._debug('extract-empty', {
+          bookId: meta.bookId,
+          chapterUid: meta.chapterUid
+        });
         return { success: false, error: '当前页面无可提取内容。', meta };
       }
 
       const formatted = this._toMarkdown(content, meta);
+      this._debug('extract-complete', {
+        method: method || 'full-chapter',
+        rawChars: content.length,
+        formattedChars: formatted.length,
+        wordCount: content.replace(/\s/g, '').length
+      });
       return {
         success: true,
         content: formatted,
@@ -166,6 +195,11 @@ class WereadExtractor {
   async _extractFromCanvas() {
     try {
       const result = await this._requestPageBridge('WEREAD_REQ_CANVAS', 'WEREAD_CANVAS_DATA');
+      this._debug('canvas-bridge-response', {
+        ok: Boolean(result && result.text),
+        chars: result?.text ? result.text.length : 0,
+        count: result?.count ?? 0
+      });
       if (result && result.text && result.text.trim().length > 0) {
         return this._normalizePlainText(result.text.trim());
       }
@@ -188,6 +222,10 @@ class WereadExtractor {
       );
 
       if (!result?.success || !result.content) {
+        this._debug('full-chapter-bridge-empty', {
+          success: Boolean(result?.success),
+          error: result?.error || '页面没有返回完整章节内容。'
+        });
         return {
           rawContent: '',
           error: result?.error || '页面没有返回完整章节内容。'
@@ -195,6 +233,11 @@ class WereadExtractor {
       }
 
       const normalized = this._normalizeChapterPayload(result.content);
+      this._debug('full-chapter-bridge-response', {
+        source: normalized.source,
+        chars: normalized.rawContent.length,
+        chapterUid: normalized.chapterUid || ''
+      });
       return {
         ...normalized,
         error: normalized.rawContent ? '' : '完整章节响应为空。'
@@ -280,6 +323,33 @@ class WereadExtractor {
   buildPrompt(markdownContent, templateText) {
     if (!templateText) return markdownContent;
     return templateText.replace(/\{\{content\}\}/g, markdownContent);
+  }
+
+  _debug(event, data = {}) {
+    if (!this._debugEnabled) return;
+    if (typeof console === 'undefined' || typeof console.log !== 'function') return;
+
+    try {
+      console.log('[debug]:' + JSON.stringify({
+        event,
+        ...this._sanitizeDebugData(data)
+      }));
+    } catch (e) {
+      console.log('[debug]:' + event);
+    }
+  }
+
+  _sanitizeDebugData(data) {
+    const safe = {};
+    Object.keys(data || {}).forEach((key) => {
+      const value = data[key];
+      if (typeof value === 'string') {
+        safe[key] = value.length > 120 ? value.slice(0, 120) + '...' : value;
+        return;
+      }
+      safe[key] = value;
+    });
+    return safe;
   }
 }
 
