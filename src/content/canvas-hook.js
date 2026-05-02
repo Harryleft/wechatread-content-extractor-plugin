@@ -12,8 +12,10 @@
   window.__wereadCanvasHookInstalled = true;
 
   let captured = [];
+  let captureBatch = 0;
   let currentFontSize = 0;
   let lastChapterUid = null;
+  const seenLineTexts = new Set();
   const proxyMap = new WeakMap();
   const chapterResponseCache = [];
   const originalGetContext = HTMLCanvasElement.prototype.getContext;
@@ -75,6 +77,8 @@
       let currentUid = (state?.reader?.chapterUid || state?.currentChapter?.chapterUid || '');
       if (currentUid && lastChapterUid && String(currentUid) !== String(lastChapterUid)) {
         captured = [];
+        captureBatch = 0;
+        seenLineTexts.clear();
       }
       if (currentUid) {
         lastChapterUid = String(currentUid);
@@ -92,39 +96,44 @@
       t: text,
       x: parseFloat(x) || 0,
       y: parseFloat(y) || 0,
-      s: currentFontSize
+      s: currentFontSize,
+      b: captureBatch
     });
   }
 
   function buildCanvasText() {
     detectChapterChange();
     const snapshot = captured.slice();
-    captured = [];
     const sorted = snapshot.sort(function (a, b) {
-      return a.y - b.y || a.x - b.x;
+      return a.b - b.b || a.y - b.y || a.x - b.x;
     });
 
     const lines = [];
     let currentLine = null;
+    let lastBatch = -1;
 
     for (let i = 0; i < sorted.length; i += 1) {
       const item = sorted[i];
-      if (!currentLine || Math.abs(item.y - currentLine.y) > 3) {
-        if (currentLine) lines.push(currentLine);
+      const batchChanged = item.b !== lastBatch;
+
+      if (!currentLine || batchChanged || Math.abs(item.y - currentLine.y) > 3) {
+        if (currentLine) lines.push(Object.assign({}, currentLine, { batch: lastBatch }));
         currentLine = {
           y: item.y,
           parts: [{ x: item.x, t: item.t }],
           fontSize: item.s
         };
+        lastBatch = item.b;
       } else {
         currentLine.parts.push({ x: item.x, t: item.t });
       }
     }
 
-    if (currentLine) lines.push(currentLine);
+    if (currentLine) lines.push(Object.assign({}, currentLine, { batch: lastBatch }));
 
     const result = [];
-    let previousY = 0;
+    const emitted = new Set();
+    let previousBatch = -1;
 
     for (let i = 0; i < lines.length; i += 1) {
       const line = lines[i];
@@ -136,7 +145,10 @@
         return part.t;
       }).join('');
 
-      if (previousY > 0 && line.y - previousY > 35) {
+      if (emitted.has(text)) continue;
+      emitted.add(text);
+
+      if (previousBatch >= 0 && line.batch !== previousBatch) {
         result.push('');
       }
 
@@ -148,7 +160,7 @@
         result.push(text);
       }
 
-      previousY = line.y;
+      previousBatch = line.batch;
     }
 
     return {
@@ -177,13 +189,11 @@
 
           if (prop === 'clearRect') {
             return function (x, y, width, height) {
-              // Only clear captured on substantial canvas clears, avoiding
-              // spurious resets from small-area redraws or unrelated canvases
               var canvas = target.canvas;
               var isSubstantial = !canvas
                 || (width >= canvas.width * 0.5 && height >= canvas.height * 0.5);
               if (isSubstantial) {
-                captured = [];
+                captureBatch++;
               }
               return value.apply(target, arguments);
             };
