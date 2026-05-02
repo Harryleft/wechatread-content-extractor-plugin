@@ -1152,6 +1152,90 @@
     return diag;
   }
 
+  // ── 诊断：webpack 模块缓存探测 ──
+
+  function exploreWebpackModules() {
+    var result = { webpackJsonpType: typeof window.webpackJsonp, chunks: [] };
+
+    try {
+      var jsonp = window.webpackJsonp;
+      if (!jsonp) return result;
+
+      // webpackJsonp 通常是数组，每个元素是 [chunkIds, moreModules, runtime]
+      // 尝试从 webpackJsonp.push 或主 bundle 中找到 __webpack_require__
+      result.jsonpLength = Array.isArray(jsonp) ? jsonp.length : 'not-array';
+      result.jsonpKeys = Object.keys(jsonp).slice(0, 10);
+
+      // 尝试通过劫持 webpackJsonp.push 捕获 runtime
+      // 检查 jsonp.push 是否已被 webpack runtime 覆盖
+      if (typeof jsonp.push === 'function') {
+        result.pushString = jsonp.push.toString().slice(0, 200);
+      }
+
+      // 检查是否有全局的 __webpack_require__
+      if (typeof __webpack_require__ !== 'undefined') {
+        result.hasWebpackRequire = true;
+      }
+
+      // 遍历已加载的 script 标签，查找主 bundle 中的关键导出
+      var scripts = document.querySelectorAll('script:not([src])');
+      var inlineSnippets = [];
+      for (var si = 0; si < scripts.length && si < 20; si++) {
+        var txt = scripts[si].textContent || '';
+        if (txt.length < 10) continue;
+        // 搜索包含 reader/book/chapter 的内联脚本
+        if (/reader|bookInfo|chapterContent|getChapter/i.test(txt)) {
+          inlineSnippets.push(txt.slice(0, 300));
+        }
+      }
+      result.inlineScriptHits = inlineSnippets;
+
+      // 尝试从 webpackJsonp 的各 chunk 中提取模块信息
+      if (Array.isArray(jsonp)) {
+        for (var ci = 0; ci < jsonp.length && ci < 10; ci++) {
+          var chunk = jsonp[ci];
+          if (!Array.isArray(chunk) || chunk.length < 2) continue;
+          var modules = chunk[1];
+          if (typeof modules !== 'object') continue;
+          var modKeys = Object.keys(modules);
+          var interestingMods = [];
+          for (var mi = 0; mi < modKeys.length && mi < 50; mi++) {
+            var modSrc = typeof modules[modKeys[mi]] === 'function'
+              ? modules[modKeys[mi]].toString()
+              : String(modules[modKeys[mi]]);
+            if (/reader|chapter|book|getContent|fetchChapter|chapterData/i.test(modSrc)) {
+              interestingMods.push({
+                moduleId: modKeys[mi],
+                matchSnippet: modSrc.match(/.{0,40}(?:reader|chapter|book|getContent|fetchChapter|chapterData).{0,40}/i)[0]
+              });
+            }
+          }
+          if (interestingMods.length > 0) {
+            result.chunks.push({ chunkId: chunk[0], interestingMods: interestingMods });
+          }
+        }
+      }
+
+      // 检查 window 上所有函数，搜索包含 'chapter' 的函数名
+      var funcNames = [];
+      var allKeys = Object.getOwnPropertyNames(window);
+      for (var fi = 0; fi < allKeys.length; fi++) {
+        var key = allKeys[fi];
+        try {
+          if (typeof window[key] === 'function' && /chapter|reader|weread/i.test(key)) {
+            funcNames.push(key);
+          }
+        } catch (e) {}
+      }
+      result.interestingFuncNames = funcNames;
+
+    } catch (e) {
+      result.error = e.message;
+    }
+
+    return result;
+  }
+
   // ── 诊断：深度探查页面结构 ──
 
   function runDiagnosis() {
@@ -1319,6 +1403,13 @@
       diag.moduleRuntime = collectModuleRuntimeDiagnostics();
     } catch (e) {
       diag.moduleRuntimeError = e.message;
+    }
+
+    // 9.2 webpack 模块深度探测
+    try {
+      diag.webpackExplore = exploreWebpackModules();
+    } catch (e) {
+      diag.webpackExploreError = e.message;
     }
 
     // 10. DOM 结构分析
