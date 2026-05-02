@@ -104,10 +104,6 @@ MIT — 随便用，随便改。
 
 <div align="center">
 
-**在文字变成像素之前，把它截下来。**
-
-<br>
-
 MIT License © [Harryleft](https://github.com/Harryleft)
 
 </div>
