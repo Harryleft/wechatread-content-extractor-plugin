@@ -206,6 +206,12 @@ class WereadExtractor {
     }
   }
 
+  // ── 诊断 ──
+
+  async diagnose() {
+    return this._requestPageBridge('WEREAD_REQ_DIAGNOSIS', 'WEREAD_DIAGNOSIS', 5000);
+  }
+
   // ── Canvas Hook 文本提取 ──
 
   _requestPageBridge(requestType, responseType, timeout = 5000, payload = {}) {

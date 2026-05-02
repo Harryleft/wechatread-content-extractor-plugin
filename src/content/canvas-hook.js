@@ -948,6 +948,92 @@
     return matched?.title || state?.currentChapter?.title || '';
   }
 
+  // ── 诊断：深度探查页面结构 ──
+
+  function runDiagnosis() {
+    var diag = {};
+
+    // 1. __INITIAL_STATE__
+    var state = window.__INITIAL_STATE__;
+    diag.hasInitialState = !!state;
+    if (state) {
+      diag.stateKeys = Object.keys(state);
+      diag.stateBookId = state.bookId || '';
+      diag.stateReaderUid = state.reader?.chapterUid || '';
+      diag.stateCurrentChapter = state.currentChapter ? {
+        title: state.currentChapter.title,
+        chapterUid: state.currentChapter.chapterUid,
+        chapterIdx: state.currentChapter.chapterIdx
+      } : null;
+      diag.stateChapterInfosCount = Array.isArray(state.chapterInfos) ? state.chapterInfos.length : 0;
+      diag.stateBookInfo = state.bookInfo ? { title: state.bookInfo.title, author: state.bookInfo.author } : null;
+    }
+
+    // 2. 全局变量扫描
+    diag.globalCandidates = {};
+    var globalNames = ['book', 'reader', '__wereadReader', '__WEREAD_READER__', '__VUE_APP__', '__vue_app__'];
+    globalNames.forEach(function (name) {
+      var val = window[name];
+      diag.globalCandidates[name] = val ? typeof val : 'undefined';
+    });
+
+    // 3. findReaderVm 详细过程
+    diag.findReaderVmSteps = [];
+
+    // 直接候选
+    var directCandidates = [window.book, window.reader, window.__wereadReader, window.__WEREAD_READER__];
+    directCandidates.forEach(function (c, i) {
+      diag.findReaderVmSteps.push('direct[' + i + ']=' + (c ? typeof c : 'null'));
+      if (c) {
+        var unwrapped = c.proxy || c.ctx || c;
+        diag.findReaderVmSteps.push('direct[' + i + '].unwrapped=' + typeof unwrapped);
+        diag.findReaderVmSteps.push('direct[' + i + '].isReaderVm=' + isReaderVm(unwrapped));
+        if (isReaderVm(unwrapped)) {
+          diag.findReaderVmSteps.push('direct[' + i + '].chapterUid=' + (unwrapped.chapterUid || unwrapped.currentChapter?.chapterUid || ''));
+        }
+      }
+    });
+
+    // 选择器扫描
+    var selectors = ['div.readerContent.routerView', '.readerContent.routerView', '.readerContent', '[class*="readerContent"]', '[class*="Reader"]'];
+    selectors.forEach(function (sel) {
+      var els = document.querySelectorAll(sel);
+      diag.findReaderVmSteps.push('selector "' + sel + '" count=' + els.length);
+      els.forEach(function (el, i) {
+        if (el.__vue__) {
+          diag.findReaderVmSteps.push('  el[' + i + '].__vue__ found');
+        } else if (el.__vueParentComponent) {
+          diag.findReaderVmSteps.push('  el[' + i + '].__vueParentComponent found');
+        } else {
+          diag.findReaderVmSteps.push('  el[' + i + '] no vue');
+        }
+      });
+    });
+
+    // 4. Vue 实例深度扫描（前200个元素）
+    var vueElements = [];
+    var allEls = document.querySelectorAll('*');
+    for (var ei = 0; ei < allEls.length && ei < 2000; ei++) {
+      if (allEls[ei].__vue__ || allEls[ei].__vueParentComponent) {
+        vueElements.push(allEls[ei].tagName + '.' + (allEls[ei].className || '').toString().slice(0, 40));
+      }
+    }
+    diag.vueElementCount = vueElements.length;
+    diag.vueElementSamples = vueElements.slice(0, 10);
+
+    // 5. 网络缓存
+    diag.networkCacheCount = chapterResponseCache.length;
+    diag.networkCacheSamples = chapterResponseCache.slice(0, 3).map(function (c) {
+      return { source: c.source, chars: (c.html || c.text || '').length, chapterUid: c.chapterUid };
+    });
+
+    // 6. 当前 URL
+    diag.currentUrl = location.href;
+
+    console.log('[WereadExtractor][DIAGNOSIS] ' + JSON.stringify(diag, null, 2));
+    return diag;
+  }
+
   // ── 消息桥接 ──
 
   window.addEventListener('message', function (event) {
@@ -983,6 +1069,15 @@
           ...result
         }, '*');
       });
+    }
+
+    if (event.data.type === 'WEREAD_REQ_DIAGNOSIS') {
+      var diag = runDiagnosis();
+      window.postMessage({
+        type: 'WEREAD_DIAGNOSIS',
+        requestId: event.data.requestId,
+        diagnosis: diag
+      }, '*');
     }
   });
 

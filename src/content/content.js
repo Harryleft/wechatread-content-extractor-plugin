@@ -142,6 +142,12 @@
 
   // ── 消息监听 ──
   chrome.runtime?.onMessage?.addListener((msg, sender, sendResponse) => {
+    if (msg.type === 'RUN_DIAGNOSIS') {
+      EXTRACTOR.diagnose().then((result) => {
+        sendResponse({ ok: true, diagnosis: result?.diagnosis || result });
+      });
+      return true;
+    }
     if (msg.type === 'EXTRACT_VISIBLE') {
       EXTRACTOR.extractVisible().then(sendResponse);
       return true;
