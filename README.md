@@ -87,3 +87,11 @@
 后来发现 [drunkdream/weread-exporter](https://github.com/drunkdream/weread-exporter) 的思路——Hook Canvas `fillText()` 在文字渲染前截获。于是基于这个思路做了 Chrome 插件版本，一键提取、自动格式化、直接进剪贴板。
 
 从「点击按钮 → 打开面板 → 选择提取 → 点击复制」到「点击按钮 → 完成」，让提取这件事尽可能无感。
+
+---
+
+<div align="center">
+
+MIT License © [Harryleft](https://github.com/Harryleft)
+
+</div>
