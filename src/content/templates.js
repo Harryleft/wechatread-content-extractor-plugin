@@ -1,5 +1,5 @@
 /**
- * WereadExtract - 内置视角模板
+ * WereadExtractor - 内置视角模板
  *
  * 每个模板是一段完整的 prompt 文本，{{content}} 作为提取内容占位符。
  * 用户可在面板中自定义创建新的视角模板。

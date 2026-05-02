@@ -1,11 +1,11 @@
 /**
- * WereadExtract - Background Service Worker
+ * WereadExtractor - Background Service Worker
  */
 
 // 安装事件
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'install') {
-    console.log('[WereadExtract] 已安装');
+    console.log('[WereadExtractor] 已安装');
   }
 });
 

@@ -1,5 +1,5 @@
 /**
- * WereadExtract - Popup 逻辑
+ * WereadExtractor - Popup 逻辑
  *
  * 提取内容 + 模板选择 + 模板管理
  */

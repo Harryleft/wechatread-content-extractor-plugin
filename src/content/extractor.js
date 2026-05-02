@@ -1,5 +1,5 @@
 /**
- * WereadExtract - 内容提取核心模块
+ * WereadExtractor - 内容提取核心模块
  *
  * 优先通过 MAIN world 获取完整章节内容。
  * 完整章节不可用时，再使用 Canvas fillText() 捕获文本作为兜底。
@@ -247,7 +247,7 @@ class WereadExtractor {
         return this._normalizePlainText(result.text.trim());
       }
     } catch (e) {
-      console.warn('[WereadExtract] Canvas hook 提取失败:', e);
+      console.warn('[WereadExtractor] Canvas hook 提取失败:', e);
     }
     return '';
   }
@@ -286,7 +286,7 @@ class WereadExtractor {
         error: normalized.rawContent ? '' : '完整章节响应为空。'
       };
     } catch (e) {
-      console.warn('[WereadExtract] 完整章节提取失败:', e);
+      console.warn('[WereadExtractor] 完整章节提取失败:', e);
       return {
         rawContent: '',
         error: '完整章节提取失败: ' + e.message

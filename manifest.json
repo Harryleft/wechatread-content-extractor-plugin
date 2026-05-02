@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Weread Extract",
+  "name": "Weread Extractor",
   "version": "1.0.0",
   "description": "一键提取微信读书内容为 Markdown，快速交给 AI 分析",
   "background": {
@@ -17,7 +17,7 @@
       "48": "src/icons/icon48.png"
     },
     "default_popup": "src/popup/popup.html",
-    "default_title": "Weread Extract"
+    "default_title": "Weread Extractor"
   },
   "content_scripts": [
     {

@@ -1,7 +1,7 @@
-/* WereadExtract - 浮动按钮 + Toast 样式 */
+/* WereadExtractor - 浮动按钮 + Toast 样式 */
 
 /* ── 浮动按钮 ── */
-#weread-extract-fab {
+#weread-extractor-fab {
   position: fixed;
   right: 24px;
   bottom: 80px;
@@ -20,13 +20,13 @@
   user-select: none;
 }
 
-#weread-extract-fab:hover {
+#weread-extractor-fab:hover {
   transform: scale(1.1);
   box-shadow: 0 6px 24px rgba(0, 135, 252, 0.35);
   background: #0070d6;
 }
 
-#weread-extract-fab:active {
+#weread-extractor-fab:active {
   transform: scale(0.95);
 }
 
