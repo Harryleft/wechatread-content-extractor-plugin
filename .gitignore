@@ -5,3 +5,5 @@ AGENTS.md
 release/
 skills-lock.json
 node_modules/
+.secrets/
+*.cookies.json
