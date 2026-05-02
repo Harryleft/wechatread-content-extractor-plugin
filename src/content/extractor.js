@@ -242,7 +242,10 @@ class WereadExtractor {
       this._debug('canvas-bridge-response', {
         ok: Boolean(result && result.text),
         chars: result?.text ? result.text.length : 0,
-        count: result?.count ?? 0
+        count: result?.count ?? 0,
+        batches: result?.batches ?? 0,
+        deadCount: result?.deadCount ?? 0,
+        totalCaptured: result?.totalCaptured ?? 0
       });
       if (result && result.text && result.text.trim().length > 0) {
         return this._normalizePlainText(result.text.trim());

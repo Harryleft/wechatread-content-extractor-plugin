@@ -117,10 +117,14 @@
 
   function buildCanvasText() {
     detectChapterChange();
+    const deadCount = captured.filter(function(item) { return item.dead; }).length;
     const snapshot = captured.filter(function(item) { return !item.dead; });
     const sorted = snapshot.sort(function (a, b) {
       return a.b - b.b || a.y - b.y || a.x - b.x;
     });
+
+    const batches = new Set();
+    for (let i = 0; i < sorted.length; i += 1) batches.add(sorted[i].b);
 
     const lines = [];
     let currentLine = null;
@@ -148,6 +152,7 @@
     const result = [];
     const emitted = new Set();
     let previousBatch = -1;
+    let skippedDupes = 0;
 
     for (let i = 0; i < lines.length; i += 1) {
       const line = lines[i];
@@ -160,8 +165,12 @@
         return part.t;
       }).join('');
 
-      if (emitted.has(text)) continue;
-      emitted.add(text);
+      var emitKey = line.batch + '|' + text;
+      if (emitted.has(emitKey)) {
+        skippedDupes += 1;
+        continue;
+      }
+      emitted.add(emitKey);
 
       if (previousBatch >= 0 && line.batch !== previousBatch) {
         result.push('');
@@ -178,10 +187,15 @@
       previousBatch = line.batch;
     }
 
+    console.log('[WereadExtractor][canvas] captured=' + captured.length + ' dead=' + deadCount + ' alive=' + snapshot.length + ' batches=' + batches.size + ' lines=' + lines.length + ' skippedDupes=' + skippedDupes);
+
     return {
       raw: sorted,
       text: result.join('\n'),
-      count: sorted.length
+      count: sorted.length,
+      batches: batches.size,
+      deadCount: deadCount,
+      totalCaptured: captured.length
     };
   }
 
@@ -793,7 +807,10 @@
         requestId: event.data.requestId,
         raw: result.raw,
         text: result.text,
-        count: result.count
+        count: result.count,
+        batches: result.batches,
+        deadCount: result.deadCount,
+        totalCaptured: result.totalCaptured
       }, '*');
     }
 
