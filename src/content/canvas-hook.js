@@ -948,6 +948,210 @@
     return matched?.title || state?.currentChapter?.title || '';
   }
 
+  function getReactFiberKeys(element) {
+    if (!element) return [];
+    return Object.keys(element).filter(function (key) {
+      return key.startsWith('__reactFiber')
+        || key.startsWith('__reactInternalInstance')
+        || key.startsWith('__reactContainer');
+    });
+  }
+
+  function getReactFiberFromElement(element) {
+    const keys = getReactFiberKeys(element);
+    if (keys.length === 0) return null;
+    return element[keys[0]] || null;
+  }
+
+  function getDisplayName(type) {
+    if (!type) return '';
+    if (typeof type === 'string') return type;
+    return type.displayName || type.name || type._context?.displayName || '';
+  }
+
+  function summarizeInterestingValue(value, depth) {
+    if (value == null || depth > 2) return null;
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+      return trimmed.length > 160 ? trimmed.slice(0, 160) + '...' : trimmed;
+    }
+    if (typeof value === 'number' || typeof value === 'boolean') return value;
+    if (Array.isArray(value)) return 'Array[' + value.length + ']';
+    if (typeof value !== 'object') return typeof value;
+
+    const summary = {};
+    Object.keys(value).slice(0, 20).forEach(function (key) {
+      if (!isInterestingStateKey(key)) return;
+      const child = summarizeInterestingValue(value[key], depth + 1);
+      if (child !== null) summary[key] = child;
+    });
+
+    return Object.keys(summary).length > 0 ? summary : 'Object{' + Object.keys(value).slice(0, 10).join(',') + '}';
+  }
+
+  function isInterestingStateKey(key) {
+    return /book|reader|chapter|content|html|text|page|store|state|title|uid|id|current|catalog/i.test(key || '');
+  }
+
+  function collectInterestingFields(value, path, output, seen, depth) {
+    if (!value || typeof value !== 'object' || depth > 4 || output.length >= 40) return;
+    if (seen.has(value)) return;
+    seen.add(value);
+
+    Object.keys(value).slice(0, 60).forEach(function (key) {
+      let child;
+      try {
+        child = value[key];
+      } catch (e) {
+        return;
+      }
+
+      const childPath = path + '.' + key;
+      if (isInterestingStateKey(key)) {
+        output.push({
+          path: childPath,
+          type: Array.isArray(child) ? 'array' : typeof child,
+          value: summarizeInterestingValue(child, 0)
+        });
+      }
+
+      if (child && typeof child === 'object') {
+        collectInterestingFields(child, childPath, output, seen, depth + 1);
+      }
+    });
+  }
+
+  function summarizeReactFiber(fiber) {
+    if (!fiber || typeof fiber !== 'object') return null;
+    const fields = [];
+    const seen = new WeakSet();
+    collectInterestingFields(fiber.memoizedProps, 'memoizedProps', fields, seen, 0);
+    collectInterestingFields(fiber.memoizedState, 'memoizedState', fields, seen, 0);
+    collectInterestingFields(fiber.updateQueue, 'updateQueue', fields, seen, 0);
+
+    return {
+      tag: fiber.tag,
+      key: fiber.key || '',
+      type: getDisplayName(fiber.elementType || fiber.type),
+      hasStateNode: !!fiber.stateNode,
+      interestingFields: fields.slice(0, 12)
+    };
+  }
+
+  function collectReactFiberDiagnostics() {
+    const roots = [];
+    const elements = document.querySelectorAll('*');
+    for (let i = 0; i < elements.length && roots.length < 20; i += 1) {
+      const fiber = getReactFiberFromElement(elements[i]);
+      if (fiber) roots.push(fiber);
+    }
+
+    const queue = roots.slice();
+    const seen = new WeakSet();
+    const componentSamples = [];
+    const stateSignals = [];
+    let visited = 0;
+
+    while (queue.length > 0 && visited < 600) {
+      const fiber = queue.shift();
+      if (!fiber || typeof fiber !== 'object' || seen.has(fiber)) continue;
+      seen.add(fiber);
+      visited++;
+
+      const summary = summarizeReactFiber(fiber);
+      if (summary && (summary.type || summary.interestingFields.length > 0)) {
+        componentSamples.push(summary);
+      }
+      if (summary && summary.interestingFields.length > 0) {
+        stateSignals.push({
+          type: summary.type,
+          fields: summary.interestingFields
+        });
+      }
+
+      if (fiber.child) queue.push(fiber.child);
+      if (fiber.sibling) queue.push(fiber.sibling);
+      if (fiber.return) queue.push(fiber.return);
+    }
+
+    return {
+      rootsFound: roots.length,
+      visited,
+      componentSamples: componentSamples.slice(0, 20),
+      stateSignals: stateSignals.slice(0, 10)
+    };
+  }
+
+  function collectStoreDiagnostics() {
+    const diag = {
+      hasReactDevtoolsHook: !!window.__REACT_DEVTOOLS_GLOBAL_HOOK__,
+      hasReduxDevtools: !!window.__REDUX_DEVTOOLS_EXTENSION__,
+      globalStoreKeys: [],
+      domStoreProps: []
+    };
+
+    Object.getOwnPropertyNames(window).forEach(function (key) {
+      if (/store|redux|recoil|zustand|mobx|valtio|jotai/i.test(key)) {
+        diag.globalStoreKeys.push(key);
+      }
+    });
+
+    const elements = document.querySelectorAll('*');
+    for (let i = 0; i < elements.length && diag.domStoreProps.length < 20; i += 1) {
+      Object.keys(elements[i]).forEach(function (key) {
+        if (!key.startsWith('__reactProps')) return;
+        const props = elements[i][key];
+        const fields = [];
+        collectInterestingFields(props, 'props', fields, new WeakSet(), 0);
+        const hasStoreShape = fields.some(function (field) {
+          return /store|state|dispatch|getState/i.test(field.path);
+        });
+        if (hasStoreShape) {
+          diag.domStoreProps.push({
+            tag: elements[i].tagName,
+            cls: (elements[i].className || '').toString().slice(0, 60),
+            fields: fields.slice(0, 8)
+          });
+        }
+      });
+    }
+
+    diag.globalStoreKeys = diag.globalStoreKeys.slice(0, 30);
+    return diag;
+  }
+
+  function collectModuleRuntimeDiagnostics() {
+    const diag = {
+      chunkKeys: [],
+      webpackRequireKeys: [],
+      scriptSamples: []
+    };
+
+    Object.getOwnPropertyNames(window).forEach(function (key) {
+      if (/webpack|chunk|jsonp|vite|require/i.test(key)) {
+        diag.chunkKeys.push({
+          key,
+          type: typeof window[key],
+          size: Array.isArray(window[key]) ? window[key].length : ''
+        });
+      }
+      if (/webpack_require/i.test(key)) {
+        diag.webpackRequireKeys.push(key);
+      }
+    });
+
+    const scripts = document.querySelectorAll('script[src]');
+    for (let i = 0; i < scripts.length && diag.scriptSamples.length < 20; i += 1) {
+      const src = scripts[i].src || '';
+      if (/reader|book|chapter|app|main|chunk|weread/i.test(src)) {
+        diag.scriptSamples.push(src);
+      }
+    }
+
+    return diag;
+  }
+
   // ── 诊断：深度探查页面结构 ──
 
   function runDiagnosis() {
@@ -1082,6 +1286,11 @@
     }
     diag.reactFiber.elementsWithFiber = reactElements.length;
     diag.reactFiber.fiberSamples = reactElements.slice(0, 5);
+    try {
+      diag.reactFiber.deep = collectReactFiberDiagnostics();
+    } catch (e) {
+      diag.reactFiber.deepError = e.message;
+    }
 
     // 9. 全局 window 属性扫描（找 reader/book/chapter 相关）
     diag.globalScan = {};
@@ -1098,6 +1307,18 @@
       });
     } catch (e) {
       diag.globalScanError = e.message;
+    }
+
+    // 9.1 Store / DevTools / 模块运行时探测
+    try {
+      diag.storeScan = collectStoreDiagnostics();
+    } catch (e) {
+      diag.storeScanError = e.message;
+    }
+    try {
+      diag.moduleRuntime = collectModuleRuntimeDiagnostics();
+    } catch (e) {
+      diag.moduleRuntimeError = e.message;
     }
 
     // 10. DOM 结构分析
