@@ -248,7 +248,9 @@ class WereadExtractor {
         totalCaptured: result?.totalCaptured ?? 0,
         clearRect: result?.clearRectCount ?? 0,
         fillRect: result?.fillRectCount ?? 0,
-        drawImage: result?.drawImageCount ?? 0
+        drawImage: result?.drawImageCount ?? 0,
+        offscreen: result?.offscreenCreated ?? 0,
+        offscreenFillText: result?.offscreenFillTextCount ?? 0
       });
       if (result && result.text && result.text.trim().length > 0) {
         return this._normalizePlainText(result.text.trim());

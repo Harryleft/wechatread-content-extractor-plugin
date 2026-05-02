@@ -187,7 +187,7 @@
       previousBatch = line.batch;
     }
 
-    console.log('[WereadExtractor][canvas] captured=' + captured.length + ' dead=' + deadCount + ' alive=' + snapshot.length + ' batches=' + batches.size + ' lines=' + lines.length + ' skippedDupes=' + skippedDupes + ' | clearRect=' + clearRectCount + ' fillRect=' + fillRectCount + ' drawImage=' + drawImageCount);
+    console.log('[WereadExtractor][canvas] captured=' + captured.length + ' dead=' + deadCount + ' alive=' + snapshot.length + ' batches=' + batches.size + ' lines=' + lines.length + ' skippedDupes=' + skippedDupes + ' | clearRect=' + clearRectCount + ' fillRect=' + fillRectCount + ' drawImage=' + drawImageCount + ' | offscreen=' + offscreenCreated + ' offscreenFillText=' + offscreenFillTextCount);
 
     return {
       raw: sorted,
@@ -198,7 +198,9 @@
       totalCaptured: captured.length,
       clearRectCount: clearRectCount,
       fillRectCount: fillRectCount,
-      drawImageCount: drawImageCount
+      drawImageCount: drawImageCount,
+      offscreenCreated: offscreenCreated,
+      offscreenFillTextCount: offscreenFillTextCount
     };
   }
 
@@ -221,6 +223,61 @@
   let drawImageCount = 0;
   let clearRectCount = 0;
   let canvasResizeCount = 0;
+  let offscreenFillTextCount = 0;
+  let offscreenCreated = 0;
+
+  function createOffscreenProxyHandler() {
+    return {
+      get: function (target, prop) {
+        const value = target[prop];
+
+        if (prop === 'fillText') {
+          return function (text, x, y) {
+            offscreenFillTextCount++;
+            recordText(text, x, y);
+            return value.apply(target, arguments);
+          };
+        }
+
+        if (prop === 'font') {
+          return value;
+        }
+
+        if (typeof value === 'function') {
+          return value.bind(target);
+        }
+
+        return value;
+      },
+
+      set: function (target, prop, value) {
+        if (prop === 'font') {
+          const parts = String(value || '').split(' ');
+          for (let i = 0; i < parts.length; i += 1) {
+            if (parts[i].endsWith('px')) {
+              currentFontSize = parseInt(parts[i], 10) || 0;
+              break;
+            }
+          }
+        }
+        target[prop] = value;
+        return true;
+      }
+    };
+  }
+
+  function installOffscreenCanvasHook() {
+    if (typeof OffscreenCanvas === 'undefined') return;
+
+    const originalOffscreenGetContext = OffscreenCanvas.prototype.getContext;
+    OffscreenCanvas.prototype.getContext = function () {
+      const context = originalOffscreenGetContext.apply(this, arguments);
+      if (arguments[0] !== '2d' || !context) return context;
+
+      offscreenCreated++;
+      return new Proxy(context, createOffscreenProxyHandler());
+    };
+  }
 
   function installCanvasHook() {
     HTMLCanvasElement.prototype.getContext = function () {
@@ -853,6 +910,7 @@
     }
   });
 
+  installOffscreenCanvasHook();
   installCanvasHook();
   installNetworkHook();
 })();
