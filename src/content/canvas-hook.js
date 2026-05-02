@@ -1030,6 +1030,108 @@
     // 6. 当前 URL
     diag.currentUrl = location.href;
 
+    // 7. __INITIAL_STATE__.reader 深度检查
+    if (state && state.reader) {
+      var readerKeys = Object.keys(state.reader);
+      diag.readerDeep = {
+        keys: readerKeys,
+        keyCount: readerKeys.length
+      };
+      // 逐个检查关键 key 的值
+      readerKeys.forEach(function (k) {
+        var v = state.reader[k];
+        var t = typeof v;
+        if (t === 'function') return;
+        if (t === 'object' && v !== null) {
+          if (Array.isArray(v)) {
+            diag.readerDeep['reader.' + k] = 'Array[' + v.length + ']';
+          } else {
+            diag.readerDeep['reader.' + k] = 'Object{' + Object.keys(v).slice(0, 15).join(',') + '}';
+          }
+        } else {
+          diag.readerDeep['reader.' + k] = String(v).slice(0, 100);
+        }
+      });
+    }
+
+    // 8. React Fiber 扫描
+    diag.reactFiber = {};
+    var reactRoot = document.getElementById('root') || document.getElementById('app');
+    if (reactRoot) {
+      diag.reactFiber.rootId = reactRoot.id;
+      var fiberKeys = Object.keys(reactRoot).filter(function (k) {
+        return k.startsWith('__reactFiber') || k.startsWith('__reactInternalInstance');
+      });
+      diag.reactFiber.fiberKeysOnRoot = fiberKeys;
+    }
+    // 扫描前100个元素寻找 React fiber
+    var reactElements = [];
+    var sampleEls = document.querySelectorAll('*');
+    for (var ri = 0; ri < sampleEls.length && ri < 100; ri++) {
+      var elKeys = Object.keys(sampleEls[ri]);
+      var fKeys = elKeys.filter(function (k) {
+        return k.startsWith('__reactFiber') || k.startsWith('__reactInternalInstance') || k.startsWith('__reactEvents');
+      });
+      if (fKeys.length > 0) {
+        reactElements.push({
+          tag: sampleEls[ri].tagName,
+          cls: (sampleEls[ri].className || '').toString().slice(0, 60),
+          fiberKeys: fKeys
+        });
+      }
+    }
+    diag.reactFiber.elementsWithFiber = reactElements.length;
+    diag.reactFiber.fiberSamples = reactElements.slice(0, 5);
+
+    // 9. 全局 window 属性扫描（找 reader/book/chapter 相关）
+    diag.globalScan = {};
+    var interestingWords = ['reader', 'book', 'chapter', 'weread', 'content', 'page', 'render'];
+    try {
+      var ownKeys = Object.getOwnPropertyNames(window);
+      interestingWords.forEach(function (word) {
+        var matches = ownKeys.filter(function (k) {
+          return k.toLowerCase().indexOf(word) !== -1;
+        });
+        if (matches.length > 0) {
+          diag.globalScan[word] = matches.slice(0, 20);
+        }
+      });
+    } catch (e) {
+      diag.globalScanError = e.message;
+    }
+
+    // 10. DOM 结构分析
+    diag.domStructure = {};
+    // Canvas 信息
+    var canvases = document.querySelectorAll('canvas');
+    diag.domStructure.canvasCount = canvases.length;
+    canvases.forEach(function (c, i) {
+      diag.domStructure['canvas' + i] = {
+        width: c.width,
+        height: c.height,
+        offsetW: c.offsetWidth,
+        offsetH: c.offsetHeight
+      };
+    });
+    // readerContent 子元素
+    var rc = document.querySelector('.readerContent') || document.querySelector('[class*="readerContent"]');
+    if (rc) {
+      diag.domStructure.readerContentChildren = rc.children.length;
+      var childInfo = [];
+      for (var ci = 0; ci < rc.children.length && ci < 20; ci++) {
+        childInfo.push({
+          tag: rc.children[ci].tagName,
+          cls: (rc.children[ci].className || '').toString().slice(0, 80),
+          childCount: rc.children[ci].children.length
+        });
+      }
+      diag.domStructure.readerContentChildSamples = childInfo;
+    }
+    // 检查是否有 React root
+    var appEl = document.querySelector('#root') || document.querySelector('#app');
+    diag.domStructure.hasRootApp = !!appEl;
+    diag.domStructure.rootAppId = appEl ? appEl.id : 'none';
+
     console.log('[WereadExtractor][DIAGNOSIS] ' + JSON.stringify(diag, null, 2));
     return diag;
   }
