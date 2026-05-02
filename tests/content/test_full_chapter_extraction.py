@@ -148,6 +148,50 @@ def test_canvas_hook_exposes_full_chapter_bridge():
     assert "getFullChapterContent" in canvas_hook
 
 
+def test_get_book_meta_resolves_chapter_uid_from_chapter_title():
+    """Given 当前章节 UID 缺失 When 目录有同名章节 Then 自动补全章节 UID。"""
+    script = build_extractor_script(
+        """
+  extractor.getPageState = async () => ({
+    bookId: '424018',
+    bookInfo: { title: '测试书', author: '测试作者' },
+    currentChapter: {
+      title: '第1章 语言，人类文明形成的关键因素'
+    },
+    reader: {
+      bookId: '424018',
+      chapterUid: ''
+    },
+    chapterInfos: [
+      {
+        title: '第1章 语言，人类文明形成的关键因素',
+        chapterUid: 'ef832f90813aba7f9g010253',
+        chapterIdx: 0
+      },
+      {
+        title: '第2章 文字与历史',
+        chapterUid: 'chapter-2',
+        chapterIdx: 1
+      }
+    ]
+  });
+
+  const meta = await Object.getPrototypeOf(extractor).getBookMeta.call(extractor);
+  printResult({
+    bookId: meta.bookId,
+    chapterTitle: meta.chapterTitle,
+    chapterUid: meta.chapterUid
+  });
+"""
+    )
+
+    result = run_node(script)
+
+    assert result["bookId"] == "424018"
+    assert result["chapterTitle"] == "第1章 语言，人类文明形成的关键因素"
+    assert result["chapterUid"] == "ef832f90813aba7f9g010253"
+
+
 def test_extract_visible_writes_debug_logs_with_required_prefix():
     """Given 调试开启 When 提取内容 Then 控制台日志必须使用指定前缀。"""
     script = build_extractor_script(
