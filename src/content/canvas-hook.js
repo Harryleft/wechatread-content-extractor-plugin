@@ -195,7 +195,43 @@
       previousBatch = line.batch;
     }
 
-    console.log('[WereadExtractor][canvas] captured=' + captured.length + ' dead=' + deadCount + ' alive=' + snapshot.length + ' batches=' + batches.size + ' lines=' + lines.length + ' skippedDupes=' + skippedDupes + ' | clearRect=' + clearRectCount + ' fillRect=' + fillRectCount + ' drawImage=' + drawImageCount + ' | offscreen=' + offscreenCreated + ' offscreenFillText=' + offscreenFillTextCount);
+    // 扫描 Canvas 上方的 DOM 文本元素
+    var domTextBlocks = 0;
+    var domTextChars = 0;
+    try {
+      var canvasEls = document.querySelectorAll('canvas');
+      var canvasRect = null;
+      for (var ci = 0; ci < canvasEls.length; ci++) {
+        if (canvasEls[ci].offsetWidth > 100) {
+          canvasRect = canvasEls[ci].getBoundingClientRect();
+          break;
+        }
+      }
+      if (canvasRect) {
+        var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+          acceptNode: function (node) {
+            var el = node.parentElement;
+            if (!el) return NodeFilter.FILTER_REJECT;
+            var tag = el.tagName;
+            if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT') return NodeFilter.FILTER_REJECT;
+            var text = (node.textContent || '').trim();
+            if (text.length < 10) return NodeFilter.FILTER_REJECT;
+            var rect = el.getBoundingClientRect();
+            if (rect.top >= canvasRect.top && rect.bottom <= canvasRect.bottom
+                && rect.left >= canvasRect.left && rect.right <= canvasRect.right) {
+              return NodeFilter.FILTER_ACCEPT;
+            }
+            return NodeFilter.FILTER_REJECT;
+          }
+        });
+        while (walker.nextNode()) {
+          domTextBlocks++;
+          domTextChars += (walker.currentNode.textContent || '').trim().length;
+        }
+      }
+    } catch (e) { /* 忽略 */ }
+
+    console.log('[WereadExtractor][canvas] captured=' + captured.length + ' dead=' + deadCount + ' alive=' + snapshot.length + ' batches=' + batches.size + ' lines=' + lines.length + ' skippedDupes=' + skippedDupes + ' | clearRect=' + clearRectCount + ' fillRect=' + fillRectCount + ' drawImage=' + drawImageCount + ' strokeText=' + strokeTextCount + ' | domTextBlocks=' + domTextBlocks + ' domTextChars=' + domTextChars);
 
     return {
       raw: sorted,
@@ -207,8 +243,9 @@
       clearRectCount: clearRectCount,
       fillRectCount: fillRectCount,
       drawImageCount: drawImageCount,
-      offscreenCreated: offscreenCreated,
-      offscreenFillTextCount: offscreenFillTextCount
+      strokeTextCount: strokeTextCount,
+      domTextBlocks: domTextBlocks,
+      domTextChars: domTextChars
     };
   }
 
@@ -233,6 +270,7 @@
   let canvasResizeCount = 0;
   let offscreenFillTextCount = 0;
   let offscreenCreated = 0;
+  let strokeTextCount = 0;
   let lastFillTextTime = 0;
   const BATCH_GAP_MS = 500;
 
@@ -301,6 +339,14 @@
 
           if (prop === 'fillText') {
             return function (text, x, y) {
+              recordText(text, x, y);
+              return value.apply(target, arguments);
+            };
+          }
+
+          if (prop === 'strokeText') {
+            return function (text, x, y) {
+              strokeTextCount++;
               recordText(text, x, y);
               return value.apply(target, arguments);
             };
