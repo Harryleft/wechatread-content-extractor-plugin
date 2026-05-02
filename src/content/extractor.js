@@ -250,6 +250,7 @@ class WereadExtractor {
         deadCount: result?.deadCount ?? 0,
         totalCaptured: result?.totalCaptured ?? 0,
         strokeText: result?.strokeTextCount ?? 0,
+        domImgs: result?.domImgCount ?? 0,
         domTextBlocks: result?.domTextBlocks ?? 0,
         domTextChars: result?.domTextChars ?? 0
       });

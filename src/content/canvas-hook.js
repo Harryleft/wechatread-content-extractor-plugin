@@ -195,9 +195,11 @@
       previousBatch = line.batch;
     }
 
-    // 扫描 Canvas 上方的 DOM 文本元素
+    // 扫描 Canvas 区域内的 DOM 元素（图片、代码块、文本等）
+    var domImgCount = 0;
     var domTextBlocks = 0;
     var domTextChars = 0;
+    var domImgSamples = [];
     try {
       var canvasEls = document.querySelectorAll('canvas');
       var canvasRect = null;
@@ -208,6 +210,20 @@
         }
       }
       if (canvasRect) {
+        // 扫描图片
+        var imgs = document.querySelectorAll('img');
+        for (var ii = 0; ii < imgs.length; ii++) {
+          var ir = imgs[ii].getBoundingClientRect();
+          if (ir.width > 30 && ir.height > 30
+              && ir.top >= canvasRect.top - 50 && ir.bottom <= canvasRect.bottom + 50
+              && ir.left >= canvasRect.left - 50 && ir.right <= canvasRect.right + 50) {
+            domImgCount++;
+            if (domImgSamples.length < 5) {
+              domImgSamples.push('img[' + Math.round(ir.top) + ',' + Math.round(ir.height) + 'px] src=' + (imgs[ii].src || '').slice(0, 80));
+            }
+          }
+        }
+        // 扫描文本节点
         var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
           acceptNode: function (node) {
             var el = node.parentElement;
@@ -217,8 +233,8 @@
             var text = (node.textContent || '').trim();
             if (text.length < 10) return NodeFilter.FILTER_REJECT;
             var rect = el.getBoundingClientRect();
-            if (rect.top >= canvasRect.top && rect.bottom <= canvasRect.bottom
-                && rect.left >= canvasRect.left && rect.right <= canvasRect.right) {
+            if (rect.top >= canvasRect.top - 50 && rect.bottom <= canvasRect.bottom + 50
+                && rect.left >= canvasRect.left - 50 && rect.right <= canvasRect.right + 50) {
               return NodeFilter.FILTER_ACCEPT;
             }
             return NodeFilter.FILTER_REJECT;
@@ -231,7 +247,10 @@
       }
     } catch (e) { /* 忽略 */ }
 
-    console.log('[WereadExtractor][canvas] captured=' + captured.length + ' dead=' + deadCount + ' alive=' + snapshot.length + ' batches=' + batches.size + ' lines=' + lines.length + ' skippedDupes=' + skippedDupes + ' | clearRect=' + clearRectCount + ' fillRect=' + fillRectCount + ' drawImage=' + drawImageCount + ' strokeText=' + strokeTextCount + ' | domTextBlocks=' + domTextBlocks + ' domTextChars=' + domTextChars);
+    console.log('[WereadExtractor][canvas] captured=' + captured.length + ' dead=' + deadCount + ' alive=' + snapshot.length + ' batches=' + batches.size + ' lines=' + lines.length + ' skippedDupes=' + skippedDupes + ' | clearRect=' + clearRectCount + ' fillRect=' + fillRectCount + ' drawImage=' + drawImageCount + ' strokeText=' + strokeTextCount + ' | domImgs=' + domImgCount + ' domTextBlocks=' + domTextBlocks + ' domTextChars=' + domTextChars);
+    if (domImgSamples.length > 0) {
+      console.log('[WereadExtractor][canvas-imgs] ' + domImgSamples.join(' | '));
+    }
 
     return {
       raw: sorted,
@@ -244,6 +263,7 @@
       fillRectCount: fillRectCount,
       drawImageCount: drawImageCount,
       strokeTextCount: strokeTextCount,
+      domImgCount: domImgCount,
       domTextBlocks: domTextBlocks,
       domTextChars: domTextChars
     };
