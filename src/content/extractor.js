@@ -57,24 +57,28 @@ class WereadExtractor {
     }
 
     if (state) {
-      meta.bookId = state.bookId || state.reader?.bookId || '';
-      if (state.bookInfo) {
-        meta.title = state.bookInfo.title || '';
-        meta.author = state.bookInfo.author || '';
+      const reader = state.reader || {};
+      const bookInfo = state.bookInfo || reader.bookInfo || {};
+      const currentChapter = reader.currentChapter || state.currentChapter || {};
+
+      meta.bookId = state.bookId || reader.bookId || bookInfo.bookId || '';
+      if (bookInfo) {
+        meta.title = bookInfo.title || '';
+        meta.author = bookInfo.author || '';
       }
-      const currentChapter = state.currentChapter || {};
-      meta.chapterUid = currentChapter.chapterUid || state.reader?.chapterUid || '';
+      meta.chapterUid = currentChapter.chapterUid || reader.chapterUid || '';
       meta.chapterIndex = currentChapter.chapterIdx ?? -1;
       meta.chapterTitle = currentChapter.title || '';
 
-      if (!meta.chapterTitle && meta.chapterUid && Array.isArray(state.chapterInfos)) {
-        const matched = state.chapterInfos.find((chapter) => {
+      const chapterInfos = state.chapterInfos || reader.chapterInfos || [];
+      if (!meta.chapterTitle && meta.chapterUid && Array.isArray(chapterInfos)) {
+        const matched = chapterInfos.find((chapter) => {
           return String(chapter.chapterUid) === String(meta.chapterUid);
         });
         if (matched?.title) meta.chapterTitle = matched.title;
       }
 
-      this._resolveChapterMetaFromInfos(meta, state.chapterInfos);
+      this._resolveChapterMetaFromInfos(meta, chapterInfos);
     }
 
     // 仅作为标题兜底，不参与正文提取。
@@ -85,7 +89,7 @@ class WereadExtractor {
     }
 
     if (state) {
-      this._resolveChapterMetaFromInfos(meta, state.chapterInfos);
+      this._resolveChapterMetaFromInfos(meta, state.chapterInfos || state.reader?.chapterInfos);
     }
 
     return meta;
